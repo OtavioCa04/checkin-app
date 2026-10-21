@@ -36,13 +36,18 @@ describe("contratos da API", () => {
       });
     expect(await promise).toEqual([{ id: 3, nome: "Responsável" }]);
   });
-  it("conclusão envia apenas status por PATCH", async () => {
-    const promise = TestBed.inject(Api).update(1, { status: "concluida" });
+  it("conclusão envia status e resultado por PATCH", async () => {
+    const body = {
+      status: "concluida" as const,
+      resultado: "realizada" as const,
+      resumo_resultado: "Resumo da visita",
+    };
+    const promise = TestBed.inject(Api).update(1, body);
     const req = TestBed.inject(HttpTestingController).expectOne(
       API_CONFIG.baseUrl + "/visitas/1",
     );
     expect(req.request.method).toBe("PATCH");
-    expect(req.request.body).toEqual({ status: "concluida" });
+    expect(req.request.body).toEqual(body);
     req.flush({ success: true, data: { id: 1, status: "concluida" } });
     expect((await promise).status).toBe("concluida");
   });

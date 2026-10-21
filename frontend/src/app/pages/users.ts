@@ -134,7 +134,12 @@ import { warnBeforeUnload } from "../unsaved";
       } @else if (!items().length) {
         <div class="state-card">Nenhum usuário nesta página.</div>
       } @else {
-        <div class="table-wrap">
+        <div
+          class="table-wrap"
+          role="region"
+          aria-label="Equipe cadastrada, tabela com rolagem horizontal"
+          tabindex="0"
+        >
           <table>
             <thead>
               <tr>

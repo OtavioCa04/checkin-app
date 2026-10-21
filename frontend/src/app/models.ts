@@ -27,6 +27,13 @@ export interface Login {
   usuario: Usuario;
 }
 export interface Visita {
+  cliente_id?: number | null;
+  contato_id?: number | null;
+  cadastro_snapshot?: string | null;
+  resultado?: ResultadoVisita | null;
+  resumo_resultado?: string | null;
+  proximo_passo?: string | null;
+  data_retorno?: string | null;
   agendamento_id?: number | null;
   id: number;
   usuario_id: number;
@@ -53,6 +60,8 @@ export interface VisitText {
   descricao: string;
 }
 export interface NewVisit extends VisitText {
+  cliente_id?: number;
+  contato_id?: number;
   agendamento_id?: number;
   responsavel_id: number;
   latitude: number;
@@ -77,9 +86,23 @@ export interface NewUser {
 export type UserPatch = Partial<
   Pick<Usuario, "nome" | "email" | "perfil" | "ativo">
 >;
-export type VisitPatch = Partial<VisitText & Pick<Visita, "status">>;
+export type VisitPatch = Partial<
+  VisitText &
+    Pick<
+      Visita,
+      | "status"
+      | "resultado"
+      | "resumo_resultado"
+      | "proximo_passo"
+      | "data_retorno"
+    >
+>;
 
 export interface Agendamento {
+  cliente_id?: number | null;
+  contato_id?: number | null;
+  cadastro_snapshot?: string | null;
+  retorno_id?: number | null;
   id: number;
   usuario_id: number;
   responsavel_id: number;
@@ -105,6 +128,8 @@ export interface AgendaEvento {
   data_nova: string | null;
 }
 export interface NovaAgenda {
+  cliente_id?: number;
+  contato_id?: number;
   usuario_id: number;
   responsavel_id: number;
   empresa: string;
@@ -114,11 +139,87 @@ export interface NovaAgenda {
   data_hora_prevista: string;
 }
 export interface AgendaChange {
-  acao: "cancelar" | "reagendar";
+  acao: "cancelar" | "reagendar" | "trocar_responsavel";
   motivo: string;
   data_hora_prevista?: string;
+  responsavel_id?: number;
 }
 export interface AgendaOptions {
   funcionarios: Responsavel[];
   responsaveis: Responsavel[];
+}
+export type ResultadoVisita =
+  "realizada" | "sem_contato" | "reagendar" | "cancelada";
+export interface ClienteInput {
+  nome_empresa: string;
+  nome_fantasia: string;
+  cnpj: string | null;
+  cep: string;
+  logradouro: string;
+  numero: string;
+  complemento: string;
+  bairro: string;
+  cidade: string;
+  uf: string;
+  pais: string;
+  observacoes: string;
+  ativo?: boolean;
+}
+export interface Cliente extends ClienteInput {
+  id: number;
+  ativo: boolean;
+  pode_editar: boolean;
+  criado_por: number;
+  criado_em: string;
+  atualizado_em: string;
+  funcionarios?: {
+    usuario_id: number;
+    nome: string;
+    ativo: boolean;
+    perfil: Perfil;
+  }[];
+}
+export interface ContatoInput {
+  nome: string;
+  cargo: string;
+  email: string;
+  telefone: string;
+  principal: boolean;
+  ativo?: boolean;
+}
+export interface Contato extends ContatoInput {
+  id: number;
+  cliente_id: number;
+  ativo: boolean;
+  criado_por: number;
+  criado_em: string;
+  atualizado_em: string;
+}
+export interface ClienteSelection {
+  cliente_id?: number;
+  contato_id?: number;
+  empresa?: string;
+  contato?: string;
+}
+export interface Retorno {
+  id: number;
+  visita_id: number;
+  cliente_id: number | null;
+  contato_id: number | null;
+  empresa: string;
+  contato: string;
+  assunto: string;
+  usuario_id: number;
+  responsavel_id: number;
+  funcionario_nome: string;
+  responsavel_nome: string;
+  proximo_passo: string | null;
+  resumo_resultado: string;
+  data_prevista: string;
+  status: "pendente" | "realizado" | "cancelado";
+  encerrado_por: number | null;
+  encerrado_por_nome: string | null;
+  encerrado_em: string | null;
+  observacao: string | null;
+  agendamento_id: number | null;
 }

@@ -15,10 +15,19 @@ try {
     if ($job['action']==='create') {
         $result=(new VisitaService($db,new VisitaRepository($db),$users))->create($users->byId($job['actor']),$job['data'],$job['key']);
         echo json_encode(['status'=>201,'id'=>(int)$result['id']]);
+    } elseif ($job['action']==='conclude') {
+        $result=(new VisitaService($db,new VisitaRepository($db),$users))->update($users->byId($job['actor']),$job['target'],$job['data']);
+        echo json_encode(['status'=>200,'id'=>(int)$result['id']]);
+    } elseif ($job['action']==='cliente') {
+        $result=(new \App\Services\ClienteService($db))->save($users->byId($job['actor']),$job['data']);echo json_encode(['status'=>201,'id'=>(int)$result['id']]);
+    } elseif ($job['action']==='contato') {
+        $result=(new \App\Services\ClienteService($db))->saveContact($users->byId($job['actor']),$job['data'],$job['target']);echo json_encode(['status'=>201,'id'=>(int)$result['id']]);
+    } elseif ($job['action']==='retorno_schedule') {
+        $result=(new \App\Services\RetornoService($db))->schedule($users->byId($job['actor']),$job['target'],$job['data']);echo json_encode(['status'=>201,'id'=>(int)$result['id']]);
     } elseif ($job['action']==='agenda_cancel') {
         (new \App\Services\AgendamentoService($db,new \App\Repositories\AgendamentoRepository($db),$users))->update($users->byId($job['actor']),$job['target'],['acao'=>'cancelar','motivo'=>'Cancelamento concorrente']);echo '{"status":200}';
     } elseif ($job['action']==='user') {
-        (new UsuarioService($db,$users))->save($users->byId($job['actor']),['ativo'=>false],$job['target']);echo '{"status":200}';
+        (new UsuarioService($db,$users))->save($users->byId($job['actor']),$job['data']??['ativo'=>false],$job['target']);echo '{"status":200}';
     } else {
         $_ENV['LOGIN_IP_LIMIT']='100';$_ENV['LOGIN_ACCOUNT_LIMIT']='1';$_ENV['LOGIN_WINDOW_SECONDS']='60';
         (new LoginLimiter($db))->consume($job['origin'],$job['identifier']);echo '{"status":200}';

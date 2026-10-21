@@ -12,6 +12,33 @@ export const routes: Routes = [
     canActivate: [protectedGuard],
     children: [
       {
+        path: "clientes",
+        title: "Clientes · Em campo",
+        canDeactivate: [unsavedGuard],
+        loadComponent: () =>
+          import("./pages/clients").then((m) => m.ClientsPage),
+      },
+      {
+        path: "clientes/:id",
+        title: "Cliente · Em campo",
+        canDeactivate: [unsavedGuard],
+        loadComponent: () =>
+          import("./pages/clients").then((m) => m.ClientDetailPage),
+      },
+      {
+        path: "retornos",
+        title: "Retornos · Em campo",
+        loadComponent: () =>
+          import("./pages/returns").then((m) => m.ReturnsPage),
+      },
+      {
+        path: "retornos/:id",
+        title: "Retorno · Em campo",
+        canDeactivate: [unsavedGuard],
+        loadComponent: () =>
+          import("./pages/returns").then((m) => m.ReturnDetailPage),
+      },
+      {
         path: "agenda",
         title: "Agenda · Em campo",
         canDeactivate: [unsavedGuard],

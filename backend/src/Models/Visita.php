@@ -8,7 +8,7 @@ final class Visita
     public const TEXT = ['contato' => 150, 'empresa' => 180, 'assunto' => 200, 'descricao' => 10000];
     public static function validate(array $data, bool $creating): array
     {
-        $allowed = $creating ? [...array_keys(self::TEXT), 'latitude', 'longitude', 'precisao_gps', 'gps_capturado_em', 'responsavel_id', 'agendamento_id'] : [...array_keys(self::TEXT), 'status'];
+        $allowed = $creating ? [...array_keys(self::TEXT), 'latitude', 'longitude', 'precisao_gps', 'gps_capturado_em', 'responsavel_id', 'agendamento_id', 'cliente_id', 'contato_id'] : [...array_keys(self::TEXT), 'status', ...Resultado::FIELDS];
         $errors = [];
         foreach (array_diff(array_keys($data), $allowed) as $key) { $errors[$key] = 'Campo não permitido.'; }
         if (!$creating && !$data) { $errors['body'] = 'Informe ao menos um campo.'; }
@@ -19,6 +19,7 @@ final class Visita
             } else { $data[$field] = trim($data[$field]); }
         }
         if ($creating) {
+            Cliente::links($data);
             if (array_key_exists('agendamento_id', $data) && (!is_int($data['agendamento_id']) || $data['agendamento_id'] < 1 || $data['agendamento_id'] > 4294967295)) { $errors['agendamento_id'] = 'Agendamento inválido.'; }
             if (!is_int($data['gps_capturado_em'] ?? null) || $data['gps_capturado_em'] < 1) { $errors['gps_capturado_em'] = 'Informe o timestamp de captura do GPS em milissegundos.'; }
             foreach (['latitude' => [-90, 90], 'longitude' => [-180, 180], 'precisao_gps' => [0, 999999.99]] as $field => [$min, $max]) {
@@ -31,6 +32,7 @@ final class Visita
         if (isset($data['status']) && !in_array($data['status'], ['em_andamento', 'concluida'], true)) { $errors['status'] = 'Status inválido.'; }
         if (array_key_exists('status', $data) && $data['status'] === null) { $errors['status'] = 'Status inválido.'; }
         if ($errors) { throw new HttpException(400, 'Dados inválidos.', $errors); }
+        if (!$creating) { $data = [...$data, ...Resultado::validate($data)]; }
         return $data;
     }
 

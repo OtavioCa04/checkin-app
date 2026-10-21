@@ -1,0 +1,168 @@
+Como rodar o Em campo no seu computador
+
+Guia para Windows 10 ou 11, sem precisar saber programar.
+
+O Em campo registra visitas, agenda, clientes, contatos e próximos retornos. A instalação tem três partes: os programas de apoio, um banco local e o próprio sistema. Na primeira vez, reserve tempo para baixar os programas. Nos outros dias, você só ligará o banco e abrirá duas janelas.
+
+Este ZIP leva o sistema, sem os dados de outro computador. O banco começará vazio. Você criará seu próprio administrador. Não há login ou senha universal. As contas usadas na demonstração não vêm cadastradas no pacote.
+
+1. Extraia o ZIP
+
+1. Clique com o botão direito no ZIP e escolha Extrair tudo.
+2. Use uma pasta fácil de encontrar, por exemplo C:\Sistemas.
+3. Abra a pasta checkin-app extraída. Você deve ver 1-INSTALAR.cmd, as pastas backend e frontend e este guia.
+4. Sempre trabalhe na pasta extraída. Não abra os arquivos diretamente dentro do ZIP.
+5. Não extraia por cima de uma instalação existente. Para uma nova instalação, use uma pasta vazia.
+
+Os arquivos .cmd são atalhos de comandos para Windows. Você vai abri-los com dois cliques, na ordem indicada. Se aparecer uma janela de erro, mantenha-a aberta para ler a mensagem.
+
+2. Instale três programas, uma única vez
+
+Use os sites oficiais:
+
+Programa — Para que serve — O que instalar
+
+XAMPP: https://www.apachefriends.org/download.html — Fornece PHP e o banco local — Windows com PHP 8.2 ou superior, 64 bits. O pacote inclui MariaDB, compatível com o desenvolvimento validado.
+Composer: https://getcomposer.org/download/ — Baixa as bibliotecas do backend — Instalador Windows Composer-Setup.exe. Quando pedir o PHP, selecione C:\xampp\php\php.exe.
+Node.js: https://nodejs.org/en/download — Executa a interface Angular — Node.js 24 LTS, instalador Windows .msi. Mantenha a opção que adiciona ao PATH.
+
+Instale o XAMPP na pasta padrão C:\xampp. Instale depois Composer e Node.js. Os botões e versões dos sites podem mudar; use as opções indicadas acima. Não precisa instalar Git nem Angular CLI separadamente. Estes programas não estão dentro do ZIP.
+
+Ao terminar, feche e abra de novo as janelas de terminal que já estavam abertas. Se algum programa pedir reinicialização, reinicie o Windows.
+
+Se seu computador já tem PHP, banco ou outros sistemas instalados, não desinstale nem substitua nada para seguir o guia. Peça ajuda a quem mantém essas instalações se houver conflito de versões ou portas.
+
+3. Baixe os componentes do sistema
+
+Na pasta extraída, dê dois cliques em 1-INSTALAR.cmd.
+
+- Este passo precisa de internet e pode demorar alguns minutos.
+- Ele instala os componentes nas pastas do próprio projeto.
+- Aguarde a mensagem INSTALACAO CONCLUIDA.
+- Ele não cria nem apaga dados do banco.
+- Normalmente só precisa ser feito na primeira instalação ou após uma atualização do sistema.
+
+Se disser que PHP, Composer ou Node não foi encontrado, volte ao passo 2. Consulte também a seção de problemas comuns no fim deste guia.
+
+4. Ligue e crie o banco local, uma única vez
+
+1. Abra XAMPP Control Panel pelo menu Iniciar.
+2. Clique em Start na linha MySQL. Espere ficar verde. O banco fornecido pelo XAMPP é MariaDB, embora o painel use o nome MySQL.
+3. Para abrir o painel visual do banco, clique também em Start na linha Apache.
+4. Abra http://localhost/phpmyadmin no navegador, ou o botão Admin da linha MySQL.
+5. Se pedir acesso, use a conta administrativa do seu XAMPP. Uma instalação nova normalmente usa root com senha vazia; se já foi configurada uma senha, use a existente. A conta do banco não é o login do Em campo.
+6. Abra BANCO-LOCAL.exemplo.sql no Bloco de Notas. Copie seu conteúdo para a aba SQL do phpMyAdmin.
+7. No texto colado, troque SUBSTITUA_A_SENHA_DO_BANCO por uma senha sua. Para facilitar este primeiro ajuste, use pelo menos 16 letras e números, sem aspas, espaços ou acentos. Anote-a: ela será usada no próximo passo.
+8. Clique em Executar. Isso cria o banco visitas_local e um usuário exclusivo para ele.
+
+Faça este passo só uma vez. Se aparecer que o banco ou o usuário já existe, não apague nada: confira se esta instalação já foi preparada ou peça ajuda para usar outro nome. Não selecione o banco de outro sistema.
+
+Depois dessa configuração visual, o Apache pode ser parado se nenhum outro sistema precisar dele. O MySQL deve continuar ligado sempre que você usar o Em campo.
+
+5. Configure a conexão com o banco
+
+1. Na pasta backend, procure .env.example.
+2. Faça uma cópia na mesma pasta e renomeie a cópia para .env. Mantenha .env.example como está.
+3. No Explorador do Windows, ative a opção de mostrar extensões de nomes de arquivos. O nome precisa ser .env, sem .txt no fim.
+4. Abra o .env com o Bloco de Notas.
+5. Ajuste estas linhas:
+
+text
+APP_ENV=local
+CORS_ORIGINS=http://localhost:4201,http://127.0.0.1:4201
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=visitas_local
+DB_USERNAME=visitas_local
+DB_PASSWORD="COLOQUE_AQUI_A_SENHA_DO_BANCO"
+
+
+Substitua apenas COLOQUE_AQUI_A_SENHA_DO_BANCO pela senha escolhida no passo 4, mantendo as aspas duplas. Os outros ajustes do exemplo podem ficar como vieram. Salve o arquivo.
+
+Esta é a senha de conexão com o banco, não a senha para entrar no sistema. Não envie seu .env para outras pessoas. Se estiver atualizando uma instalação existente, preserve o .env já configurado; não substitua pelo exemplo.
+
+6. Prepare as tabelas
+
+Com o MySQL ligado, abra 2-PREPARAR-BANCO.cmd e pressione uma tecla quando solicitado.
+
+Ele prepara somente as tabelas pendentes no banco configurado. Na primeira instalação, devem aparecer as migrações 001, 002, 003, 004 e 005. Aguarde BANCO PREPARADO. Se não aparecer nome de migração, mas o passo terminar com sucesso, elas já estavam aplicadas.
+
+Se houver erro, não apague o banco nem repita importações de arquivos SQL aleatórios. Confira o .env e a mensagem da janela. Se uma migração parar no meio, peça ajuda antes de repetir.
+
+7. Crie seu login de administrador
+
+Abra 3-CRIAR-ADMIN.cmd. Ele perguntará:
+
+1. Seu nome.
+2. O e-mail que você quer usar para entrar.
+3. Uma senha escolhida por você. Use de 12 a 72 caracteres: letras, números e símbolos como hífen (-) ou sublinhado (_) são aceitos. Evite acentos e cedilha nesta janela. Ao digitar a senha, nada será mostrado na tela; isso é normal. Pressione Enter ao terminar.
+
+Aguarde ADMINISTRADOR CRIADO e guarde o e-mail e a senha. Não execute novamente para redefinir senha: esse arquivo cria contas novas e não muda contas existentes. E-mail já cadastrado causa erro.
+
+Depois de entrar como administrador, use Usuários no menu para criar funcionários e responsáveis com suas próprias senhas iniciais. O funcionário só poderá escolher um responsável se existir uma conta ativa com esse perfil. Clientes criados pelo administrador precisam receber o vínculo com os funcionários que vão usá-los.
+
+8. Abra o sistema
+
+1. Confirme que o MySQL está verde no XAMPP.
+2. Dê dois cliques em 4-INICIAR-BACKEND.cmd. Deixe a janela aberta.
+3. Dê dois cliques em 5-INICIAR-FRONTEND.cmd. Deixe esta janela aberta também.
+4. Espere a interface terminar de compilar. Deve aparecer um endereço local e a indicação de que está aguardando alterações.
+5. Abra no navegador: http://127.0.0.1:4201.
+6. Entre com o e-mail e a senha criados no passo 7.
+
+As portas usadas pelos atalhos são 8000 para a API e 4201 para a interface. A porta 4200 foi evitada para reduzir conflitos com outros projetos. Não é necessário trocar a URL da API no código. O atalho do backend permite as origens locais 4200/4201 só naquela janela, sem reescrever .env.
+
+Enquanto usar o sistema, mantenha o banco e as duas janelas abertos. Não abra os atalhos de iniciar várias vezes: uma segunda cópia encontrará a porta ocupada.
+
+Nos próximos dias: apenas três ações
+
+1. Abra o XAMPP e ligue o MySQL.
+2. Abra 4-INICIAR-BACKEND.cmd e 5-INICIAR-FRONTEND.cmd.
+3. Entre em http://127.0.0.1:4201.
+
+Não repita a criação do banco nem do administrador. Seus dados ficam no banco do computador, não dentro do ZIP. Fechar o navegador não apaga visitas ou clientes.
+
+Como encerrar
+
+Feche as janelas do backend e do frontend, ou pressione Ctrl+C em cada uma. Se perguntar se deseja finalizar a tarefa em lote, confirme. Depois pare o MySQL no XAMPP se nenhum outro sistema estiver usando o banco.
+
+Uso básico
+
+- Administrador: cria usuários, gerencia clientes e contatos, atribui acesso e acompanha todos os registros.
+- Funcionário: cadastra clientes do seu trabalho, agenda e faz check-in com GPS; ao concluir, registra resultado e pode prever um retorno.
+- Responsável: consulta visitas, agenda, clientes/contatos e retornos atribuídos a ele.
+- Visitas concluídas: ficam disponíveis para consulta e não podem ser reabertas ou editadas.
+- Retornos: gerar um agendamento não marca automaticamente o retorno como realizado.
+- Sessão: recarregar a página exige fazer login novamente. Isso é esperado; o token só fica em memória.
+- GPS: permita a localização no navegador quando solicitado. A precisão depende do aparelho; há computadores sem localização precisa. A aplicação precisa permanecer no endereço local para esse teste.
+
+Problemas comuns
+
+O que apareceu — O que conferir
+
+PHP/Composer/Node não encontrado — Termine as instalações, reabra a janela e tente novamente. PHP fora de C:\xampp precisa estar no PATH. Composer deve usar o mesmo PHP.
+PHP antigo ou faltam pdo_mysql/mbstring — Use PHP 8.2+ de 64 bits. No XAMPP, abra a configuração php.ini e confira as linhas extension=pdo_mysql e extension=mbstring, sem ; no início. Reabra a janela depois. Se aparecer erro de DLL, peça ajuda para conferir versões compatíveis.
+Dependências não instaladas — Rode 1-INSTALAR.cmd com internet. Não ignore erro de download, certificado ou versão.
+Connection refused / conexão recusada / código 2002 — O MySQL pode estar desligado. Confira o painel do XAMPP e DB_HOST/DB_PORT no .env.
+Access denied / código 1045 — Confira DB_USERNAME e DB_PASSWORD. Use a senha do banco escolhida no passo 4, não a senha do administrador do aplicativo.
+Unknown database / código 1049 — O banco ainda não foi criado ou DB_DATABASE está diferente de visitas_local.
+Tabela não existe — Confira se está no banco correto e execute 2-PREPARAR-BANCO.cmd.
+Porta 8000 ou 4201 em uso / address already in use — Veja se já existe uma janela deste sistema aberta. Não feche processos de outros sistemas; se o conflito continuar, peça ajuda para mudar as portas de forma consistente.
+A página não abre — Use exatamente http://127.0.0.1:4201 e aguarde o frontend compilar. Confira as duas janelas.
+Não foi possível conectar à API — Confira se a janela do backend continua aberta. Abra http://127.0.0.1:8000/api/v1/health: deve aparecer um texto JSON com status ok. Esse endereço verifica a API, não garante que o banco está conectado.
+Erro de CORS / origem não permitida — Inicie pelo atalho 4-INICIAR-BACKEND.cmd e use o endereço indicado. Evite outro hostname/porta.
+401 / e-mail ou senha inválidos — Use o e-mail e a senha criados por você. A senha do banco não funciona na tela de login. Confira também se o usuário está ativo.
+429 / muitas tentativas — Aguarde o tempo indicado na tela antes de tentar de novo.
+Localização negada — Nas permissões do navegador para esse endereço, permita a localização e faça nova captura.
+
+Se precisar de ajuda, envie a mensagem do erro e diga em qual passo parou. Não envie sua senha, seu .env nem um backup do banco.
+
+O que vem e o que não vem neste ZIP
+
+Vêm backend, frontend, migrações, testes, exemplos de configuração, documentação e atalhos de execução. Bibliotecas serão baixadas pelo passo 1. Não vêm PHP, MySQL/MariaDB, Composer, Node.js, Git, banco preenchido, contas prontas, .env real, logs, uploads ou dependências já instaladas.
+
+O pacote é para desenvolvimento e teste local. Para disponibilizar pela internet ou para uma equipe em rede, é necessária uma configuração de hospedagem própria. Para transferir dados já cadastrados, peça um procedimento separado de backup e restauração; copiar só esta pasta não copia o banco.
+
+Documentação técnica opcional
+
+Quem for manter ou atualizar o sistema pode consultar README-TECNICO.md (no ZIP), backend/README.md, frontend/README.md, AGENDA.md e CLIENTES-E-RETORNOS.md. Os históricos de validação registram os testes executados na máquina de desenvolvimento; eles não significam que a instalação em outro computador já foi testada.

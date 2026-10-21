@@ -37,13 +37,17 @@ final class AgendamentoRepository
     }
     public function create(array $data): int
     {
-        $keys = ['usuario_id', 'responsavel_id', 'criado_por', 'empresa', 'contato', 'assunto', 'observacoes', 'data_hora_prevista'];
-        $q = $this->db->prepare('INSERT INTO agendamentos (' . implode(',', $keys) . ') VALUES (?,?,?,?,?,?,?,?)');
-        $q->execute(array_map(static fn ($key) => $data[$key], $keys)); return (int) $this->db->lastInsertId();
+        $keys = ['usuario_id', 'responsavel_id', 'criado_por', 'empresa', 'contato', 'assunto', 'observacoes', 'data_hora_prevista', 'cliente_id', 'contato_id', 'cadastro_snapshot'];
+        $q = $this->db->prepare('INSERT INTO agendamentos (' . implode(',', $keys) . ') VALUES ('.implode(',',array_fill(0,count($keys),'?')).')');
+        $q->execute(array_map(static fn ($key) => $data[$key] ?? null, $keys)); return (int) $this->db->lastInsertId();
     }
     public function change(int $id, string $status, string $date): void
     {
         $q = $this->db->prepare('UPDATE agendamentos SET status=?, data_hora_prevista=? WHERE id=?'); $q->execute([$status, $date, $id]);
+    }
+    public function changeResponsible(int $id, int $responsibleId): void
+    {
+        $q = $this->db->prepare('UPDATE agendamentos SET responsavel_id=? WHERE id=?'); $q->execute([$responsibleId, $id]);
     }
     public function event(int $id, int $author, string $action, string $reason, ?string $old, ?string $new): void
     {
@@ -54,5 +58,9 @@ final class AgendamentoRepository
     {
         $q = $this->db->prepare('SELECT id,nome FROM usuarios WHERE perfil=? AND ativo=1 ORDER BY nome,id'); $q->execute([$role]);
         return array_map(static fn ($u) => ['id' => (int) $u['id'], 'nome' => $u['nome']], $q->fetchAll());
+    }
+    public function linkReturn(int $id,int $returnId): void
+    {
+        $q=$this->db->prepare('UPDATE agendamentos SET retorno_id=? WHERE id=?');$q->execute([$returnId,$id]);
     }
 }

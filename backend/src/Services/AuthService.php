@@ -22,6 +22,7 @@ final class AuthService
         $hash = $user['senha_hash'] ?? $dummyHash;
         $valid = password_verify($input['senha'], $hash);
         if (!$user || !$valid || !(bool) $user['ativo']) { throw new HttpException(401, 'Credenciais inválidas.'); }
+        $this->limiter?->success($origin, $input['email']);
         $ttl = (int) App::env('TOKEN_TTL_SECONDS', '28800');
         if ($ttl < 60 || $ttl > 86400) { throw new \RuntimeException('TTL inválido.'); }
         $token = bin2hex(random_bytes(32));

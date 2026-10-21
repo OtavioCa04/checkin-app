@@ -56,6 +56,7 @@ test('paginação limitada', function (): void { check(Pagination::read([]) === 
 require __DIR__ . '/responsaveis.php';
 require __DIR__ . '/reliability.php';
 require __DIR__ . '/agenda.php';
+require __DIR__ . '/clientes.php';
 
 if (App\Config\App::env('RUN_DB_TESTS') === '1') {
     $target=getenv('TEST_DB_DATABASE');
@@ -94,7 +95,7 @@ if (App\Config\App::env('RUN_DB_TESTS') === '1') {
             rejects(fn () => $service->update($resp, $id, ['contato' => 'Novo']), 403);
             check((int) $service->find($users->byId($ids[3]), $id)['id'] === $id);
             rejects(fn () => $service->create($u, [...$input, 'responsavel_id' => $ids[1]], bin2hex(random_bytes(16))), 400);
-            $closed = $service->update($u, $id, ['status' => 'concluida']);
+            $closed = $service->update($u, $id, ['status' => 'concluida', 'resultado'=>'realizada', 'resumo_resultado'=>'Resumo da visita de teste.']);
             check($closed['data_hora_checkout'] !== null);
             rejects(fn () => $service->update($u, $id, ['contato' => 'Novo']), 409);
             $db->prepare('UPDATE usuarios SET ativo = 0 WHERE id = ?')->execute([$ids[0]]);

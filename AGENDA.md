@@ -15,7 +15,7 @@ Preserve o `.env` e o banco atual. Não importe novamente a migração inicial. 
 PowerShell, a partir da raiz do projeto:
 
 ```powershell
-Set-Location outputs/backend
+Set-Location backend
 composer install
 composer migrate
 $env:RUN_DB_TESTS = '0'
@@ -26,7 +26,7 @@ php -S 127.0.0.1:8000 -t public public/index.php
 Em outro terminal, a partir da raiz:
 
 ```powershell
-Set-Location outputs/frontend
+Set-Location frontend
 npm ci
 npm test
 npm run build
@@ -36,7 +36,7 @@ npm start
 Git Bash:
 
 ```bash
-cd outputs/backend
+cd backend
 composer install
 composer migrate
 RUN_DB_TESTS=0 php tests/run.php
@@ -46,7 +46,7 @@ php -S 127.0.0.1:8000 -t public public/index.php
 Em outro terminal:
 
 ```bash
-cd outputs/frontend
+cd frontend
 npm ci
 npm test
 npm run build
@@ -67,7 +67,7 @@ Novos agendamentos exigem funcionário e responsável ativos com os respectivos 
 
 Estados persistidos: `pendente`, `realizado`, `cancelado`. A interface calcula `atrasado` para pendente com horário vencido; o filtro atrasado usa UTC_TIMESTAMP no backend. Não há job que cancele automaticamente. `pendente` inclui atrasados. É permitido iniciar um pendente antes ou depois do horário previsto. Realizado significa que o check-in foi criado, independentemente de o checkout já ter ocorrido.
 
-Reagendar e cancelar exigem motivo (até 1000 pontos Unicode). Só pendentes podem mudar. Data nova/criação deve ser futura segundo o servidor. Histórico registra autor, horário oficial UTC, ação, motivo, data anterior e nova. Não há exclusão, reabertura, reatribuição ou edição dos demais dados do planejamento: cancele e crie outro se necessário. Alterações de perfil/inativação preservam vínculos existentes; novas operações de check-in continuam exigindo responsável ativo.
+Reagendar e cancelar exigem motivo (até 1000 pontos Unicode). Só pendentes podem mudar. Data nova/criação deve ser futura segundo o servidor. Histórico registra autor, horário oficial UTC, ação, motivo, data anterior e nova. Trocar responsável (`trocar_responsavel`) também exige motivo e aceita só responsável ativo; o histórico guarda o anterior no motivo. Use quando o responsável original foi desativado, pois o check-in exige responsável ativo. Não há exclusão, reabertura, troca de funcionário ou edição dos demais dados do planejamento: cancele e crie outro se necessário. Alterações de perfil/inativação preservam vínculos existentes.
 
 ## Contratos da API
 
@@ -79,7 +79,7 @@ Prefixo `/api/v1`, Bearer em memória no frontend, respostas JSON existentes `su
 | POST | /agendamentos | Cria planejamento |
 | GET | /agendamentos/opcoes | Funcionário/admin, funcionários e responsáveis ativos com id/nome |
 | GET | /agendamentos/{id} | Dados, visita_id e eventos de auditoria |
-| PATCH | /agendamentos/{id} | Reagendar ou cancelar |
+| PATCH | /agendamentos/{id} | Reagendar, cancelar ou trocar responsável |
 | POST | /visitas | Check-in existente com agendamento_id opcional |
 
 GET aceita `limit` (1–100), `offset`, `inicio`, `fim`, `status` e `funcionario_id` (apenas admin). Datas de filtro/criação/reagendamento usam UTC exato `YYYY-MM-DDTHH:mm:ssZ`; início incluído e fim excluído. Retorno DATETIME é UTC. Filtros sempre restringem o escopo, nunca o substituem. Lista retorna `data.items/limit/offset`, sem total. A última página cheia pode permitir avançar para uma vazia.
@@ -106,6 +106,10 @@ Empresa (180), contato (150), assunto (200) obrigatórios; observações opciona
 
 ```json
 {"acao":"cancelar","motivo":"Contato cancelou a reunião."}
+```
+
+```json
+{"acao":"trocar_responsavel","motivo":"Responsável anterior desligado.","responsavel_id":4}
 ```
 
 Para iniciar, a UI abre o check-in existente, preenche contato/empresa/assunto/descrição a partir das observações e fixa o responsável do agendamento. Revise os dados e preencha a descrição se o planejamento não tinha observações. Capture GPS atual. POST /visitas recebe os campos já documentados, mais `agendamento_id` numérico, mantendo `Idempotency-Key`. Funcionário e check-in oficial continuam vindos da identidade e do relógio do servidor. Campos textuais do registro realizado podem refletir o que aconteceu em campo.

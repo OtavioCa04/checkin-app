@@ -31,6 +31,22 @@ test('reagendamento e cancelamento auditam autor, horário e motivo; vencimento 
     rejects(fn()=>$visits->create($actor,[...$data,'agendamento_id'=>$id],bin2hex(random_bytes(16))),409);
     check($agenda->find($actor,$id)['visita_id']===null);
 });
+test('troca de responsável destrava agendamento cujo responsável foi desativado',function()use($agenda,$planned,$actor,$other,$resp,$users,$visits,$data){
+    $newResp=$users->create(['nome'=>'Responsável Substituto','email'=>'substituto@example.test','senha_hash'=>password_hash('senha-teste-123',PASSWORD_DEFAULT),'perfil'=>'responsavel','ativo'=>true]);
+    $id=(int)$agenda->create($actor,$planned)['id'];
+    $users->update((int)$resp['id'],['ativo'=>false]);
+    try{
+        $payload=[...$data,'agendamento_id'=>$id,'gps_capturado_em'=>(int)floor(microtime(true)*1000)];
+        rejects(fn()=>$visits->create($actor,$payload,bin2hex(random_bytes(16))),400);
+        rejects(fn()=>$agenda->update($actor,$id,['acao'=>'trocar_responsavel','motivo'=>'Inativo','responsavel_id'=>(int)$other['id']]),400);
+        rejects(fn()=>$agenda->update($actor,$id,['acao'=>'trocar_responsavel','motivo'=>'Inativo','responsavel_id'=>(int)$resp['id']]),400);
+        $changed=$agenda->update($actor,$id,['acao'=>'trocar_responsavel','motivo'=>'Responsável desligado','responsavel_id'=>$newResp]);
+        $event=end($changed['eventos']);check((int)$changed['responsavel_id']===$newResp&&$changed['status']==='pendente'&&$event['acao']==='responsavel_alterado'&&str_contains($event['motivo'],'#'.$resp['id']));
+        $v=$visits->create($actor,[...$payload,'responsavel_id'=>$newResp],bin2hex(random_bytes(16)));
+        check((int)$v['responsavel_id']===$newResp&&$agenda->find($actor,$id)['status']==='realizado');
+        rejects(fn()=>$agenda->update($actor,$id,['acao'=>'trocar_responsavel','motivo'=>'Depois','responsavel_id'=>(int)$resp['id']]),409);
+    } finally { $users->update((int)$resp['id'],['ativo'=>true]); }
+});
 test('check-in agenda mantém GPS, autorização, UTC e rollback sem realização prematura',function()use($agenda,$planned,$actor,$other,$admin,$visits,$data,$db){
     $item=$agenda->create($actor,$planned);$id=(int)$item['id'];$payload=[...$data,'agendamento_id'=>$id,'gps_capturado_em'=>(int)floor(microtime(true)*1000)];
     rejects(fn()=>$visits->create($other,$payload,bin2hex(random_bytes(16))),404);

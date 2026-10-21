@@ -3,12 +3,18 @@ import { FormControl, ReactiveFormsModule, Validators } from "@angular/forms";
 import { ActivatedRoute, Router, RouterLink } from "@angular/router";
 import { Api, errorMessage, fieldErrors } from "../api";
 import { Coordinates, freshCoordinates, locate, textForm } from "../shared";
-import { Agendamento, NewVisit, Responsavel } from "../models";
+import {
+  Agendamento,
+  NewVisit,
+  Responsavel,
+  ClienteSelection,
+} from "../models";
+import { CustomerPicker } from "../customer-picker";
 import { warnBeforeUnload } from "../unsaved";
 import { HttpErrorResponse } from "@angular/common/http";
 import { TextFields } from "../text-fields";
 @Component({
-  imports: [ReactiveFormsModule, RouterLink, TextFields],
+  imports: [ReactiveFormsModule, RouterLink, TextFields, CustomerPicker],
   template: `
     <a routerLink="/visitas" class="back-link">← Voltar às visitas</a>
     <div class="page-heading">
@@ -79,6 +85,12 @@ import { TextFields } from "../text-fields";
           </div>
         }
         <fieldset [disabled]="saving()">
+          <customer-picker
+            [preset]="selection()"
+            [disabled]="saving() || !!pending()"
+            [locked]="!!scheduled()?.cliente_id"
+            (selected)="chooseCustomer($event)"
+          />
           <visit-text-fields [form]="form" [errors]="errors()" />
           <div class="field">
             <label for="responsavel"
@@ -209,6 +221,27 @@ export class CreatePage {
   readonly scheduled = signal<Agendamento | null>(null);
   readonly scheduleLoading = signal(false);
   readonly scheduleError = signal("");
+  readonly selection = signal<ClienteSelection | null>(null);
+  chooseCustomer(value: ClienteSelection): void {
+    if (this.saving() || this.pending()) return;
+    this.selection.set(value);
+    if (value.empresa) this.form.controls.empresa.setValue(value.empresa);
+    if (value.contato) this.form.controls.contato.setValue(value.contato);
+    value.cliente_id
+      ? this.form.controls.empresa.disable()
+      : this.form.controls.empresa.enable();
+    value.contato_id
+      ? this.form.controls.contato.disable()
+      : this.form.controls.contato.enable();
+    this.form.markAsDirty();
+  }
+  private customerLinks(): { cliente_id?: number; contato_id?: number } {
+    const c = this.selection();
+    return {
+      ...(c?.cliente_id ? { cliente_id: Number(c.cliente_id) } : {}),
+      ...(c?.contato_id ? { contato_id: Number(c.contato_id) } : {}),
+    };
+  }
   readonly form = textForm();
   readonly responsible = new FormControl<number | null>(
     null,
@@ -263,6 +296,15 @@ export class CreatePage {
         assunto: item.assunto,
         descricao: item.observacoes,
       });
+      if (item.cliente_id) {
+        this.chooseCustomer({
+          cliente_id: Number(item.cliente_id),
+          ...(item.contato_id ? { contato_id: Number(item.contato_id) } : {}),
+          empresa: item.empresa,
+          contato: item.contato,
+        });
+        this.form.markAsPristine();
+      }
       this.responsible.setValue(Number(item.responsavel_id));
       this.responsible.disable();
     } catch (e) {
@@ -386,6 +428,7 @@ export class CreatePage {
     const responsible = this.responsible.value;
     if (this.pending()) {
       const candidate = {
+        ...this.customerLinks(),
         ...(this.scheduled()
           ? { agendamento_id: Number(this.scheduled()!.id) }
           : {}),
@@ -425,6 +468,7 @@ export class CreatePage {
     const attempt = {
       key: crypto.randomUUID(),
       payload: {
+        ...this.customerLinks(),
         ...(this.scheduled()
           ? { agendamento_id: Number(this.scheduled()!.id) }
           : {}),

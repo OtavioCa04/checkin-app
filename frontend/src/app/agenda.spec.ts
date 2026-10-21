@@ -17,6 +17,8 @@ import { CreatePage } from "./pages/create";
 import { Agendamento, Perfil } from "./models";
 import { Session } from "./session";
 import { agendaRange, agendaStatus, localInput, toUtc } from "./agenda-dates";
+import { utcDate } from "./shared";
+import { dayLabel } from "./customer-shared";
 
 const schedule: Agendamento = {
   id: 8,
@@ -48,6 +50,20 @@ function login(perfil: Perfil = "funcionario"): void {
 }
 
 describe("datas da agenda", () => {
+  it("preserva o dia de retorno e converte UTC perto da meia-noite em São Paulo", () => {
+    const format = new Intl.DateTimeFormat("pt-BR", {
+      timeZone: "America/Sao_Paulo",
+      dateStyle: "short",
+      timeStyle: "short",
+    });
+    expect(format.format(utcDate("2026-10-21 02:59:00"))).toBe(
+      "20/10/2026, 23:59",
+    );
+    expect(format.format(utcDate("2026-10-21 03:00:00"))).toBe(
+      "21/10/2026, 00:00",
+    );
+    expect(dayLabel("2026-10-21")).toBe("21/10/2026");
+  });
   it("converte entrada local e preserva ida e volta sem depender de UTC−3 fixo", () => {
     const local = "2028-01-02T09:30";
     const utc = toUtc(local);

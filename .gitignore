@@ -12,6 +12,7 @@
 **/out-tsc/
 **/coverage/
 frontend/preview-login.png
+/entregas/
 
 # Dados privados da API
 backend/storage/logs/*

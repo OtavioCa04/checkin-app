@@ -1,4 +1,8 @@
-# Atualização do sistema — 15/10/2026
+# Atualização do sistema — 16/10/2026
+
+**21/10/2026, correções:** aplique `005_agenda_troca_responsavel.sql` pelo runner (`composer migrate` ou `2-PREPARAR-BANCO.cmd`). Ela só amplia a lista de ações do histórico da agenda; não altera dados. Mudanças: desativar um usuário ou trocar seu perfil encerra as sessões abertas; login correto não consome a cota de tentativas; agendamentos pendentes podem trocar de responsável (com motivo); valores `0` no `.env` deixam de ser ignorados; `create-user.php` informa e-mail duplicado.
+
+**Clientes/resultados/retornos:** aplique `004_clientes_resultados_retornos.sql` pelo runner (`composer migrate`) e atualize o frontend com os comandos abaixo. Preserve `.env` e dados. Novos contratos e regras em [CLIENTES-E-RETORNOS.md](CLIENTES-E-RETORNOS.md). Relatos sobre etapas anteriores abaixo são históricos.
 
 **Agenda implementada:** execute a migração incremental 003 com os comandos abaixo. Documentação atual e resultados em [AGENDA.md](AGENDA.md). A migração 003 já foi aplicada ao banco local preservando usuários e visitas. O relato sobre a migração 002 abaixo corresponde à revisão anterior.
 
@@ -9,7 +13,7 @@ Antes de executar, interrompa os servidores antigos com Ctrl+C. Preserve o .env 
 A partir da raiz do projeto, atualize o backend:
 
 ```powershell
-Set-Location outputs/backend
+Set-Location backend
 composer install
 composer migrate
 $env:RUN_DB_TESTS = '0'
@@ -20,7 +24,7 @@ php -S 127.0.0.1:8000 -t public public/index.php
 Em um segundo terminal, a partir da raiz:
 
 ```powershell
-Set-Location outputs/frontend
+Set-Location frontend
 npm ci
 npm test
 npm run build
@@ -32,7 +36,7 @@ Se npm.ps1 for bloqueado, use npm.cmd. Se PHP/Composer/Node não estiverem no PA
 ## Git Bash
 
 ```bash
-cd outputs/backend
+cd backend
 composer install
 composer migrate
 RUN_DB_TESTS=0 php tests/run.php
@@ -42,7 +46,7 @@ php -S 127.0.0.1:8000 -t public public/index.php
 Em outro terminal:
 
 ```bash
-cd outputs/frontend
+cd frontend
 npm ci
 npm test
 npm run build

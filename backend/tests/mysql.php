@@ -12,7 +12,7 @@ if (!$target || !preg_match('/^visitas_test_[a-z0-9_]+$/D',$target) || $target==
 $created=false;$passed=0;$failed=0;
 function check(bool $value):void{if(!$value){throw new RuntimeException('Asserção falhou.');}}
 function rejects(callable $call,int $status):void{try{$call();}catch(HttpException $e){check($e->status===$status);return;}throw new RuntimeException('Exceção esperada.');}
-function test(string $name,callable $call):void{global $passed,$failed;try{$call();$passed++;echo "PASS $name\n";}catch(Throwable $e){$failed++;echo "FAIL $name: ".get_class($e)."\n";}}
+function test(string $name,callable $call):void{global $passed,$failed;try{$call();$passed++;echo "PASS $name\n";}catch(Throwable $e){$failed++;echo "FAIL $name: ".get_class($e).' em '.basename($e->getFile()).':'.$e->getLine()."\n";}}
 function concurrent(array $jobs):array{
     $processes=[];$start=microtime(true)+1;
     foreach($jobs as $job){
@@ -75,7 +75,25 @@ try{
         $db->exec('UPDATE login_limits SET inicio = inicio - 61');$limiter->consume('192.0.2.4','c@example.test');
         $result=concurrent([['action'=>'limit','origin'=>'192.0.2.8','identifier'=>'concurrent@example.test'],['action'=>'limit','origin'=>'192.0.2.9','identifier'=>'concurrent@example.test']]);$statuses=array_column($result,'status');sort($statuses);check($statuses===[200,429]);
     });
+    test('login correto não consome cota de conta nem de origem',function()use($db){
+        $limiter=new LoginLimiter($db);
+        foreach(range(1,4)as$i){$limiter->consume('192.0.2.20','Correto@example.test');$limiter->success('192.0.2.20','correto@example.test');}
+        $limiter->consume('192.0.2.20','correto@example.test');$limiter->consume('192.0.2.21','correto@example.test');
+        rejects(fn()=>$limiter->consume('192.0.2.22','correto@example.test'),429);
+    });
+    test('desativar ou trocar perfil revoga tokens e reativação não os restaura',function()use($management,$admin,$users){
+        $tokens=new \App\Repositories\TokenRepository($db=Database::connection());$future=gmdate('Y-m-d H:i:s',time()+3600);
+        $id=$users->create(['nome'=>'Sessão Revogada','email'=>'revoga@example.test','senha_hash'=>password_hash('senha-teste-123',PASSWORD_DEFAULT),'perfil'=>'funcionario','ativo'=>true]);
+        $tokens->create($id,str_repeat('1',64),$future);$tokens->create($id,str_repeat('2',64),gmdate('Y-m-d H:i:s',time()-60));
+        $management->save($admin,['nome'=>'Sessão Mantida'],$id);check($tokens->user(str_repeat('1',64))!==null);
+        $management->save($admin,['ativo'=>false],$id);$management->save($admin,['ativo'=>true],$id);check($tokens->user(str_repeat('1',64))===null);
+        $tokens->create($id,str_repeat('3',64),$future);$management->save($admin,['perfil'=>'responsavel'],$id);check($tokens->user(str_repeat('3',64))===null);
+        $tokens->create($id,str_repeat('4',64),$future);$tokens->create($id,str_repeat('5',64),$future);
+        $q=$db->prepare('SELECT COUNT(*) FROM auth_tokens WHERE usuario_id=? AND expira_em<=UTC_TIMESTAMP()');$q->execute([$id]);check((int)$q->fetchColumn()===0);
+    });
     require __DIR__.'/agenda-mysql.php';
+    require __DIR__.'/clientes-mysql.php';
+    require __DIR__.'/audit-mysql.php';
     test('gestão administrativa protege permissões e não expõe hashes',function()use($management,$admin,$actor,$ids,$visits){
         rejects(fn()=>$management->save($actor,['ativo'=>false],$ids[0]),403);
         $u=$management->save($admin,['nome'=>'Criado','email'=>'novo@example.test','perfil'=>'funcionario','ativo'=>true,'senha'=>'senha-teste-123']);check(!isset($u['senha_hash']));
@@ -87,6 +105,12 @@ try{
         $result=concurrent([['action'=>'user','actor'=>$ids[0],'target'=>$ids[1]],['action'=>'user','actor'=>$ids[1],'target'=>$ids[0]]]);
         check($users->activeAdmins()===1);check(count(array_filter($result,fn($r)=>$r['status']===200))===1);
         $remaining=$db->query("SELECT * FROM usuarios WHERE perfil='admin' AND ativo=1")->fetch();rejects(fn()=>$management->save($remaining,['perfil'=>'funcionario'],(int)$remaining['id']),409);
+    });
+    test('remoção concorrente de perfil mantém um administrador ativo',function()use($db,$users){
+        $remaining=(int)$db->query("SELECT id FROM usuarios WHERE perfil='admin' AND ativo=1")->fetchColumn();
+        $second=$users->create(['nome'=>'Administrador concorrente fictício','email'=>'admin-concorrente@example.test','senha_hash'=>password_hash('somente-testes-2026',PASSWORD_DEFAULT),'perfil'=>'admin','ativo'=>true]);
+        $jobs=[];foreach([$remaining,$second]as$id){$jobs[]=['action'=>'user','actor'=>$id,'target'=>$id,'data'=>['perfil'=>'funcionario']];}
+        $statuses=array_column(concurrent($jobs),'status');sort($statuses);check($statuses===[200,409]&&$users->activeAdmins()===1);
     });
 }catch(Throwable $e){
     echo 'Integração indisponível/falhou: '.get_class($e).' (código '.(int)$e->getCode()."). Nenhuma credencial foi exibida.\n";$failed++;

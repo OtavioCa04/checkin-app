@@ -8,8 +8,9 @@ final class VisitaRepository
     public function __construct(private PDO $db) {}
     public function create(array $data): int
     {
-        $q = $this->db->prepare('INSERT INTO visitas (usuario_id, responsavel_id, latitude, longitude, precisao_gps, contato, empresa, assunto, descricao, agendamento_id, data_hora_checkin) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, UTC_TIMESTAMP())');
-        $q->execute([...array_map(static fn (string $key) => $data[$key], ['usuario_id', 'responsavel_id', 'latitude', 'longitude', 'precisao_gps', 'contato', 'empresa', 'assunto', 'descricao']), $data['agendamento_id'] ?? null]);
+        $keys=['usuario_id','responsavel_id','latitude','longitude','precisao_gps','contato','empresa','assunto','descricao','agendamento_id','cliente_id','contato_id','cadastro_snapshot'];
+        $q=$this->db->prepare('INSERT INTO visitas ('.implode(',',$keys).',data_hora_checkin) VALUES ('.implode(',',array_fill(0,count($keys),'?')).',UTC_TIMESTAMP())');
+        $q->execute(array_map(static fn($key)=>$data[$key]??null,$keys));
         return (int) $this->db->lastInsertId();
     }
     public function find(int $id, bool $lock = false): ?array
@@ -47,7 +48,7 @@ final class VisitaRepository
     {
         $parts = [];
         foreach ($data as $key => $value) {
-            if (!in_array($key, [...array_keys(\App\Models\Visita::TEXT), 'status'], true)) { throw new \InvalidArgumentException('Campo inválido.'); }
+            if (!in_array($key, [...array_keys(\App\Models\Visita::TEXT), 'status', ...\App\Models\Resultado::FIELDS], true)) { throw new \InvalidArgumentException('Campo inválido.'); }
             $parts[] = "{$key} = ?";
         }
         if (($data['status'] ?? '') === 'concluida') { $parts[] = 'data_hora_checkout = UTC_TIMESTAMP()'; }

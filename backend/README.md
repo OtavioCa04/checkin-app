@@ -1,5 +1,17 @@
 # API MVC de visitas — PHP/MySQL
 
+## Rodada de validação — 21/10/2026
+
+Testes reais adicionais em `tests/http.php` (HTTP + banco isolado), `tests/backup.php` (backup/restauração somente descartável), `tests/audit-mysql.php` e fixture opcional `tests/browser-fixture.php`. Comandos, resultados e limites em [VALIDACAO_E2E.md](../VALIDACAO_E2E.md). Use nomes novos `visitas_test_*` e configuração separada no processo; preserve `.env`. As contagens históricas abaixo não representam esta rodada.
+
+## Clientes, resultados e retornos — 16/10/2026
+
+Nova migração incremental **004_clientes_resultados_retornos.sql**. Antes de iniciar, execute `composer install` e `composer migrate` (ou `php bin/migrate.php`), preservando o `.env`. Cadastros de clientes/contatos com acesso explícito, CNPJ único, retratos históricos e acompanhamento de retornos foram integrados à agenda/check-in existentes. Conclusão agora exige resultado e resumo, gravados junto do checkout; concluídas antigas permanecem legíveis e imutáveis.
+
+Novos endpoints: GET/POST `/clientes`, GET/PATCH `/clientes/{id}`, PATCH `/clientes/{id}/acessos`, GET/POST `/clientes/{id}/contatos`, PATCH `/contatos/{id}`, GET `/clientes/{id}/visitas` e `/agendamentos`, GET `/retornos`, GET/PATCH `/retornos/{id}` e POST `/retornos/{id}/agendamento`, sob `/api/v1`.
+
+Contratos, permissões, semântica de datas, instalação/migração/inicialização em **PowerShell e Git Bash**, exemplos e limites em [CLIENTES-E-RETORNOS.md](../CLIENTES-E-RETORNOS.md). Resultados executados em [VALIDACAO.md](VALIDACAO.md). As descrições das revisões anteriores abaixo são históricas quando houver contrato ampliado nesta etapa.
+
 ## Agenda de visitas — 15/10/2026
 
 Agenda funcional adicionada por migração incremental **003_agenda.sql**. Execute `composer migrate` (ou `php bin/migrate.php`) antes de usar. Preserve o `.env`. Contratos, permissões, concorrência, comandos PowerShell/Git Bash e validação em [AGENDA.md](../AGENDA.md). A migração já foi aplicada ao banco local, preservando o conteúdo anterior de usuários e visitas.
@@ -15,7 +27,7 @@ PHP 8.2+ (64 bits), PDO/pdo_mysql, mbstring, Composer/PSR-4, MySQL 8.0.16+ e Inn
 Na raiz do projeto, PowerShell:
 
 ```powershell
-Set-Location outputs/backend
+Set-Location backend
 composer install
 composer migrate
 $env:RUN_DB_TESTS = '0'
@@ -26,7 +38,7 @@ php -S 127.0.0.1:8000 -t public public/index.php
 Git Bash:
 
 ```bash
-cd outputs/backend
+cd backend
 composer install
 composer migrate
 RUN_DB_TESTS=0 php tests/run.php
@@ -65,7 +77,7 @@ Variáveis novas têm defaults: adicione-as manualmente se precisar, sem substit
 
 POST /auth/login recebe email e senha (1–72 **bytes**, sem trim da senha). password_verify e ativo são verificados; inexistente/inativo/senha incorreta têm a mesma mensagem 401. Não pula verificação de hash para conta inexistente. O token é aleatório, 32 bytes em hexadecimal; auth_tokens guarda apenas SHA-256 e expiração. /me não expõe hash. Logout revoga o token atual. Perfil e ativo são consultados a cada chamada autenticada.
 
-LoginLimiter usa tabela compartilhada login_limits, transações e bloqueios para duas chaves: origem e conta. Conta é normalizada em trim/minúsculas; as chaves são hashes, sem IP/e-mail bruto nessa tabela. Contam todas as tentativas JSON, inclusive sucesso e dados inválidos. Limite atingido retorna **429 e Retry-After em segundos**. Requisições bloqueadas não renovam a janela. Liberação automática após a janela evita bloqueio permanente; contas existentes/inexistentes têm a mesma política. Não registra senhas ou tokens.
+LoginLimiter usa tabela compartilhada login_limits, transações e bloqueios para duas chaves: origem e conta. Conta é normalizada em trim/minúsculas; as chaves são hashes, sem IP/e-mail bruto nessa tabela. Cada tentativa conta ao entrar; um login correto zera a cota da conta e devolve a tentativa à origem, então só falhas e dados inválidos se acumulam. Falhas repetidas ainda podem bloquear temporariamente uma conta conhecida até a janela expirar. Desativar um usuário ou trocar seu perfil revoga todos os tokens dele; tokens vencidos do usuário são removidos a cada novo login. Limite atingido retorna **429 e Retry-After em segundos**. Requisições bloqueadas não renovam a janela. Liberação automática após a janela evita bloqueio permanente; contas existentes/inexistentes têm a mesma política. Não registra senhas ou tokens.
 
 Origem padrão é REMOTE_ADDR. X-Forwarded-For é ignorado salvo se o peer estiver em TRUSTED_PROXIES. A cadeia é percorrida da direita para a esquerda, removendo somente proxies confiáveis; cadeia inválida faz fallback para REMOTE_ADDR. Configure o proxy para validar/substituir cabeçalhos recebidos.
 
@@ -110,7 +122,7 @@ Novas criações recusam GPS com idade maior que o limite, com tolerância de 5 
 
 Check-in/checkout oficiais continuam definidos pelo servidor em UTC; usuario_id vem da identidade, nunca do cliente. GPS/timestamp do dispositivo não comprovam presença física. O timestamp GPS não é o horário oficial.
 
-PATCH aceita contato/empresa/assunto/descricao/status. Concluir define checkout. Concluídas são imutáveis (409). Não edita GPS, identidade, responsável ou horários. FOR UPDATE bloqueia o registro da visita.
+PATCH aceita campos textuais/status e resultado/resumo_resultado/proximo_passo/data_retorno junto da conclusão. Empresa/contato vinculados ao cadastro preservam o retrato original. Concluir exige resultado/resumo, define checkout e cria retorno quando há data, tudo na mesma transação. Concluídas são imutáveis (409). Não edita GPS, identidade, responsável ou horários. FOR UPDATE bloqueia o registro da visita.
 
 ## Filtros e nomes
 
@@ -135,7 +147,7 @@ Visitas existentes **não são reatribuídas, apagadas ou alteradas**. IDs mant�
 O script de terminal foi preservado:
 
 ```powershell
-$env:SEED_PASSWORD = 'senha-inicial-ficticia-123'
+$env:SEED_PASSWORD = 'crie-uma-senha-propria-123'
 php bin/create-user.php 'Admin Teste' admin@example.test admin
 Remove-Item Env:\SEED_PASSWORD
 ```
@@ -161,3 +173,4 @@ TEST_DB_DATABASE="visitas_test_$(date +%s)_${RANDOM}" php tests/mysql.php
 ```
 
 Resultados em [VALIDACAO.md](VALIDACAO.md). Ainda faltam fotos, notificações, relatórios, auditoria e recuperação de senha. Sem reabertura. A revisão não aplicou migrações no banco atual nem alterou .env/dados existentes, e não fez commit/push.
+

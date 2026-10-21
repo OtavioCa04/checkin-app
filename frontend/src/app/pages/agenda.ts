@@ -7,14 +7,15 @@ import {
 } from "@angular/forms";
 import { RouterLink } from "@angular/router";
 import { Api, errorMessage, fieldErrors } from "../api";
-import { Agendamento, AgendaOptions } from "../models";
+import { Agendamento, AgendaOptions, ClienteSelection } from "../models";
+import { CustomerPicker } from "../customer-picker";
 import { Session } from "../session";
 import { LocalDatePipe, maxCharacters, nonBlank, utcDate } from "../shared";
 import { agendaRange, agendaStatus, localInput, toUtc } from "../agenda-dates";
 import { warnBeforeUnload } from "../unsaved";
 
 @Component({
-  imports: [ReactiveFormsModule, RouterLink, LocalDatePipe],
+  imports: [ReactiveFormsModule, RouterLink, LocalDatePipe, CustomerPicker],
   template: `
     <div class="page-heading">
       <div>
@@ -114,7 +115,9 @@ import { warnBeforeUnload } from "../unsaved";
               ? "Agendar visita"
               : mode === "reagendar"
                 ? "Reagendar visita"
-                : "Cancelar agendamento"
+                : mode === "responsavel"
+                  ? "Trocar responsável"
+                  : "Cancelar agendamento"
           }}
         </h2>
         @if (selected(); as item) {
@@ -137,6 +140,11 @@ import { warnBeforeUnload } from "../unsaved";
           }
           <fieldset [disabled]="saving()">
             @if (mode === "novo") {
+              <customer-picker
+                [preset]="selection()"
+                [disabled]="saving()"
+                (selected)="chooseCustomer($event)"
+              />
               <div class="form-grid">
                 <div class="field">
                   <label for="schedule-company">Empresa *</label
@@ -178,7 +186,20 @@ import { warnBeforeUnload } from "../unsaved";
                 ></textarea>
               </div>
             }
-            @if (mode !== "cancelar") {
+            @if (mode === "responsavel") {
+              <div class="field">
+                <label for="schedule-new-resp">Novo responsável *</label
+                ><select id="schedule-new-resp" formControlName="responsavel_id">
+                  <option [ngValue]="null">Selecione</option>
+                  @for (r of options().responsaveis; track r.id) {
+                    @if (r.id !== Number(selected()?.responsavel_id)) {
+                      <option [ngValue]="r.id">{{ r.nome }}</option>
+                    }
+                  }
+                </select>
+              </div>
+            }
+            @if (mode === "novo" || mode === "reagendar") {
               <div class="field">
                 <label for="schedule-date"
                   >Data e hora prevista * (seu fuso local)</label
@@ -228,7 +249,9 @@ import { warnBeforeUnload } from "../unsaved";
                   ? "Salvando…"
                   : mode === "cancelar"
                     ? "Confirmar cancelamento"
-                    : "Salvar agendamento"
+                    : mode === "responsavel"
+                      ? "Salvar responsável"
+                      : "Salvar agendamento"
               }}
             </button>
           </div>
@@ -287,7 +310,14 @@ import { warnBeforeUnload } from "../unsaved";
                     [disabled]="saving()"
                     (click)="edit(item, 'cancelar')"
                   >
-                    Cancelar
+                    Cancelar</button
+                  ><button
+                    type="button"
+                    class="button secondary"
+                    [disabled]="saving()"
+                    (click)="edit(item, 'responsavel')"
+                  >
+                    Trocar responsável
                   </button>
                 }
                 @if (canStart(item)) {
@@ -363,6 +393,20 @@ import { warnBeforeUnload } from "../unsaved";
   `,
 })
 export class AgendaPage {
+  readonly selection = signal<ClienteSelection | null>(null);
+  chooseCustomer(value: ClienteSelection): void {
+    if (this.saving()) return;
+    this.selection.set(value);
+    if (value.empresa) this.form.controls.empresa.setValue(value.empresa);
+    if (value.contato) this.form.controls.contato.setValue(value.contato);
+    value.cliente_id
+      ? this.form.controls.empresa.disable()
+      : this.form.controls.empresa.enable();
+    value.contato_id
+      ? this.form.controls.contato.disable()
+      : this.form.controls.contato.enable();
+    this.form.markAsDirty();
+  }
   readonly session = inject(Session);
   private readonly api = inject(Api);
   private destroyed = false;
@@ -382,7 +426,10 @@ export class AgendaPage {
   readonly offset = signal(0);
   readonly errors = signal<string[]>([]);
   readonly selected = signal<Agendamento | null>(null);
-  readonly editor = signal<"novo" | "reagendar" | "cancelar" | null>(null);
+  readonly editor = signal<
+    "novo" | "reagendar" | "cancelar" | "responsavel" | null
+  >(null);
+  readonly Number = Number;
   readonly historyItem = signal<Agendamento | null>(null);
   readonly historyLoading = signal(false);
   readonly now = signal(Date.now());
@@ -547,7 +594,7 @@ export class AgendaPage {
     this.error.set("");
     this.errors.set([]);
   }
-  edit(item: Agendamento, mode: "reagendar" | "cancelar"): void {
+  edit(item: Agendamento, mode: "reagendar" | "cancelar" | "responsavel"): void {
     if (
       this.saving() ||
       !this.canManage(item) ||
@@ -570,6 +617,9 @@ export class AgendaPage {
     )
       return false;
     this.editor.set(null);
+    this.selection.set(null);
+    this.form.controls.empresa.enable();
+    this.form.controls.contato.enable();
     this.selected.set(null);
     this.form.markAsPristine();
     return true;
@@ -586,7 +636,9 @@ export class AgendaPage {
           c.responsavel_id,
           c.data,
         ].some((x) => x.invalid)
-      : c.motivo.invalid || (this.editor() === "reagendar" && c.data.invalid);
+      : c.motivo.invalid ||
+          (this.editor() === "reagendar" && c.data.invalid) ||
+          (this.editor() === "responsavel" && c.responsavel_id.invalid);
   }
   async save(): Promise<void> {
     if (this.saving() || !this.editor()) return;
@@ -598,7 +650,7 @@ export class AgendaPage {
       mode = this.editor()!;
     let date = "";
     try {
-      if (mode !== "cancelar") {
+      if (mode === "novo" || mode === "reagendar") {
         date = toUtc(f.data);
         if (new Date(date).getTime() <= Date.now())
           throw new Error("Escolha uma data e hora futura.");
@@ -611,6 +663,12 @@ export class AgendaPage {
     try {
       if (mode === "novo")
         await this.api.createSchedule({
+          ...(this.selection()?.cliente_id
+            ? { cliente_id: Number(this.selection()!.cliente_id) }
+            : {}),
+          ...(this.selection()?.contato_id
+            ? { contato_id: Number(this.selection()!.contato_id) }
+            : {}),
           empresa: f.empresa,
           contato: f.contato,
           assunto: f.assunto,
@@ -621,9 +679,12 @@ export class AgendaPage {
         });
       else
         await this.api.changeSchedule(Number(this.selected()!.id), {
-          acao: mode,
+          acao: mode === "responsavel" ? "trocar_responsavel" : mode,
           motivo: f.motivo,
           ...(mode === "reagendar" ? { data_hora_prevista: date } : {}),
+          ...(mode === "responsavel"
+            ? { responsavel_id: Number(f.responsavel_id) }
+            : {}),
         });
       if (this.destroyed) return;
       this.form.markAsPristine();
@@ -634,7 +695,9 @@ export class AgendaPage {
           ? "Agendamento cancelado."
           : mode === "reagendar"
             ? "Visita reagendada."
-            : "Agendamento criado.",
+            : mode === "responsavel"
+              ? "Responsável alterado."
+              : "Agendamento criado.",
       );
       this.offset.set(0);
       await this.load();

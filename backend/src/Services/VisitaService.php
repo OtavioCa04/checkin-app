@@ -39,7 +39,9 @@ final class VisitaService
                 if (!$scheduled || (int) $scheduled['usuario_id'] !== (int) $user['id']) { throw new HttpException(404, 'Agendamento não encontrado.'); }
                 if ($scheduled['status'] !== 'pendente' || $scheduled['visita_id'] !== null) { throw new HttpException(409, 'Agendamento cancelado ou já realizado. Consulte a agenda.'); }
                 if ((int) $scheduled['responsavel_id'] !== $data['responsavel_id']) { throw new HttpException(400, 'Use o responsável do agendamento.', ['responsavel_id' => 'O responsável deve ser o do agendamento.']); }
+                if($scheduled['cliente_id']!==null && ((int)$scheduled['cliente_id']!==($data['cliente_id']??null) || (int)($scheduled['contato_id']??0)!==(int)($data['contato_id']??0))){throw new HttpException(400,'Mantenha o cliente e o contato vinculados ao agendamento.');}
             }
+            $data=(new ClienteService($this->db))->snapshot($user,$data);
             $responsible = $this->users->byId($data['responsavel_id'], true);
             if (!$responsible || !$responsible['ativo'] || $responsible['perfil'] !== 'responsavel') {
                 throw new HttpException(400, 'Dados inválidos.', ['responsavel_id' => 'Responsável inexistente, inativo ou sem perfil adequado.']);
@@ -75,7 +77,9 @@ final class VisitaService
             if ($user['perfil'] !== 'admin' && !($user['perfil'] === 'funcionario' && (int) $visit['usuario_id'] === (int) $user['id'])) { throw new HttpException(403, 'Sem permissão para editar.'); }
             if ($visit['status'] === 'concluida') { throw new HttpException(409, 'Visita concluída não pode ser editada.'); }
             $data = Visita::validate($input, false);
+            foreach(['empresa'=>'cliente_id','contato'=>'contato_id'] as $field=>$link){if($visit[$link]!==null && isset($data[$field]) && $data[$field]!==$visit[$field]){throw new HttpException(400,'O retrato cadastral da visita não pode ser alterado.',[$field=>'Campo vinculado ao cadastro no momento do check-in.']);}}
             $this->visits->update($id, $data);
+            if(($data['status']??'')==='concluida' && $data['data_retorno']!==null){(new \App\Repositories\RetornoRepository($this->db))->create($id,$data['data_retorno']);}
             $result = $this->visits->find($id);
             $this->db->commit();
             return $result;

@@ -39,7 +39,7 @@ export const authInterceptor: HttpInterceptorFn = (request, next) => {
   });
   return next(outbound).pipe(
     catchError((error: HttpErrorResponse) => {
-      if (error.status === 401) {
+      if (error.status === 401 && session.token === token) {
         session.clear(
           token
             ? "Sua sessão expirou. Entre novamente."

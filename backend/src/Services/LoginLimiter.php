@@ -26,7 +26,7 @@ final class LoginLimiter
         $ipLimit = (int) App::env('LOGIN_IP_LIMIT', '30');
         $accountLimit = (int) App::env('LOGIN_ACCOUNT_LIMIT', '10');
         if ($window < 1 || $window > 86400 || $ipLimit < 1 || $accountLimit < 1) { throw new \RuntimeException('Limites inválidos.'); }
-        $buckets = [hash('sha256', 'ip:' . $origin) => $ipLimit, hash('sha256', 'account:' . mb_strtolower(trim($identifier), 'UTF-8')) => $accountLimit];
+        $buckets = [self::ipKey($origin) => $ipLimit, self::accountKey($identifier) => $accountLimit];
         ksort($buckets);
         $now = time(); $retry = 0; $rows = [];
         $this->db->beginTransaction();
@@ -50,4 +50,14 @@ final class LoginLimiter
         } catch (\Throwable $e) { if ($this->db->inTransaction()) { $this->db->rollBack(); } throw $e; }
         if ($retry) { throw new HttpException(429, 'Muitas tentativas. Aguarde antes de entrar novamente.', [], ['Retry-After' => (string) max(1, $retry)]); }
     }
+    // Login correto não consome cota: zera a conta e devolve ao IP a tentativa contada em consume().
+    public function success(string $origin, string $identifier): void
+    {
+        $q = $this->db->prepare('UPDATE login_limits SET tentativas = 0 WHERE chave = ?');
+        $q->execute([self::accountKey($identifier)]);
+        $q = $this->db->prepare('UPDATE login_limits SET tentativas = GREATEST(tentativas - 1, 0) WHERE chave = ?');
+        $q->execute([self::ipKey($origin)]);
+    }
+    private static function ipKey(string $origin): string { return hash('sha256', 'ip:' . $origin); }
+    private static function accountKey(string $identifier): string { return hash('sha256', 'account:' . mb_strtolower(trim($identifier), 'UTF-8')); }
 }

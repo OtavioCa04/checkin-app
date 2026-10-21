@@ -522,6 +522,9 @@ footer span {
 .table-wrap {
   overflow-x: auto;
 }
+.table-wrap table {
+  min-width: 640px;
+}
 table {
   width: 100%;
   border-collapse: collapse;
@@ -1365,5 +1368,50 @@ fieldset {
   }
   .agenda-actions .button {
     flex: 1 1 140px;
+  }
+}
+.search-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.8rem;
+  align-items: end;
+  margin-bottom: 1.4rem;
+}
+.search-row .field {
+  flex: 1 1 180px;
+}
+.customer-picker {
+  border: 1px solid var(--border, #dbe4dd);
+  border-radius: 12px;
+  padding: 1rem;
+  margin-bottom: 1.4rem;
+}
+.customer-picker .picker-item {
+  margin: 0.3rem;
+}
+.contact-card {
+  padding: 1rem 0;
+  border-bottom: 1px solid #e1e8e2;
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 1rem;
+  overflow-wrap: anywhere;
+}
+.check-field {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 1rem 0;
+}
+.check-field input {
+  width: auto;
+}
+.panel + .panel {
+  margin-top: 1.5rem;
+}
+@media (max-width: 640px) {
+  .contact-card {
+    flex-direction: column;
   }
 }

@@ -6,22 +6,34 @@ import {
   input,
   signal,
 } from "@angular/core";
-import { ReactiveFormsModule } from "@angular/forms";
+import {
+  FormControl,
+  FormGroup,
+  ReactiveFormsModule,
+  Validators,
+} from "@angular/forms";
 import { Location } from "@angular/common";
 import { warnBeforeUnload } from "../unsaved";
 import { ActivatedRoute, Router } from "@angular/router";
 import { RouterLink } from "@angular/router";
 import { HttpErrorResponse } from "@angular/common/http";
 import { Api, errorMessage, fieldErrors } from "../api";
-import { Visita } from "../models";
-import { canEdit, LocalDatePipe, textForm } from "../shared";
+import { Visita, ResultadoVisita } from "../models";
+import {
+  canEdit,
+  LocalDatePipe,
+  textForm,
+  nonBlank,
+  maxCharacters,
+} from "../shared";
+import { dayLabel, snapshotDetails } from "../customer-shared";
 import { Session } from "../session";
 import { TextFields } from "../text-fields";
 @Component({
   imports: [RouterLink, LocalDatePipe, ReactiveFormsModule, TextFields],
   template: `
-    <a class="back-link" routerLink="/visitas" [queryParams]="backFilters()"
-      >← Voltar às visitas</a
+    <a class="back-link" [routerLink]="backLink()" [queryParams]="backFilters()"
+      >← Voltar</a
     >
     @if (busy()) {
       <div class="state-card" role="status">Carregando visita…</div>
@@ -100,6 +112,20 @@ import { TextFields } from "../text-fields";
               <dd>{{ v.assunto }}</dd>
               <dt>Descrição</dt>
               <dd class="description">{{ v.descricao }}</dd>
+              @if (snapshot(v.cadastro_snapshot)) {
+                <dt>Retrato cadastral no check-in</dt>
+                <dd class="description">{{ snapshot(v.cadastro_snapshot) }}</dd>
+              }
+              @if (v.resultado) {
+                <dt>Resultado</dt>
+                <dd>{{ resultLabels[v.resultado] }}</dd>
+                <dt>Resumo</dt>
+                <dd class="description">{{ v.resumo_resultado }}</dd>
+                <dt>Próximo passo</dt>
+                <dd class="description">{{ v.proximo_passo || "—" }}</dd>
+                <dt>Retorno previsto</dt>
+                <dd>{{ day(v.data_retorno) }}</dd>
+              }
             </dl>
           }
           @if (v.status === "concluida") {
@@ -130,19 +156,75 @@ import { TextFields } from "../text-fields";
                   aria-label="Confirmar conclusão"
                 >
                   <p>Concluir esta visita? Você não poderá editá-la depois.</p>
-                  <button
-                    class="button secondary compact"
-                    [disabled]="saving()"
-                    (click)="confirming.set(false)"
+                  <form
+                    [formGroup]="resultForm"
+                    (submit)="completeSubmit($event)"
+                    novalidate
                   >
-                    Voltar</button
-                  ><button
-                    class="button primary compact"
-                    [disabled]="saving()"
-                    (click)="complete()"
-                  >
-                    {{ saving() ? "Concluindo…" : "Confirmar conclusão" }}
-                  </button>
+                    <fieldset [disabled]="saving()">
+                      <div class="field">
+                        <label for="visit-result">Resultado *</label
+                        ><select id="visit-result" formControlName="resultado">
+                          <option value="">Selecione</option>
+                          <option value="realizada">Realizada</option>
+                          <option value="sem_contato">Sem contato</option>
+                          <option value="reagendar">Reagendar</option>
+                          <option value="cancelada">Cancelada</option>
+                        </select>
+                      </div>
+                      <div class="field">
+                        <label for="visit-summary"
+                          >Resumo do resultado * (até 10000 caracteres)</label
+                        ><textarea
+                          id="visit-summary"
+                          formControlName="resumo_resultado"
+                          rows="3"
+                        ></textarea>
+                      </div>
+                      <div class="field">
+                        <label for="visit-next"
+                          >Próximo passo (opcional, até 10000 caracteres)</label
+                        ><textarea
+                          id="visit-next"
+                          formControlName="proximo_passo"
+                          rows="2"
+                        ></textarea>
+                      </div>
+                      <div class="field">
+                        <label for="visit-return"
+                          >Dia previsto de retorno (opcional)</label
+                        ><input
+                          id="visit-return"
+                          type="date"
+                          formControlName="data_retorno"
+                        /><small
+                          >Dia de calendário, sem conversão de fuso. Cria uma
+                          pendência separada.</small
+                        >
+                      </div>
+                    </fieldset>
+                    @if (resultForm.touched && resultForm.invalid) {
+                      <p class="field-error" role="alert">
+                        Selecione o resultado e preencha o resumo. Limite de
+                        10000 caracteres por texto.
+                      </p>
+                    }
+                    <button
+                      type="button"
+                      class="button secondary compact"
+                      [disabled]="saving()"
+                      (click)="confirming.set(false)"
+                    >
+                      Voltar</button
+                    ><button
+                      type="button"
+                      class="button primary compact"
+                      [disabled]="saving()"
+                      (click)="complete()"
+                    >
+                      {{ saving() ? "Concluindo…" : "Confirmar conclusão" }}
+                    </button>
+                  </form>
                 </div>
               }
             </div>
@@ -216,6 +298,29 @@ export class DetailPage {
   readonly saving = signal(false);
   readonly errors = signal<Record<string, string>>({});
   readonly form = textForm();
+  readonly day = dayLabel;
+  readonly snapshot = snapshotDetails;
+  readonly resultLabels: Record<ResultadoVisita, string> = {
+    realizada: "Realizada",
+    sem_contato: "Sem contato",
+    reagendar: "Reagendar",
+    cancelada: "Cancelada",
+  };
+  readonly resultForm = new FormGroup({
+    resultado: new FormControl<ResultadoVisita | "">("", {
+      nonNullable: true,
+      validators: Validators.required,
+    }),
+    resumo_resultado: new FormControl("", {
+      nonNullable: true,
+      validators: [nonBlank, maxCharacters(10000)],
+    }),
+    proximo_passo: new FormControl("", {
+      nonNullable: true,
+      validators: [maxCharacters(10000)],
+    }),
+    data_retorno: new FormControl("", { nonNullable: true }),
+  });
   private generation = 0;
   private destroyed = false;
   private creationNotice: Record<string, unknown> | null;
@@ -234,10 +339,26 @@ export class DetailPage {
     });
   }
   backFilters() {
-    return this.route.snapshot.queryParams;
+    const { origem_cliente, origem_retorno, ...rest } =
+      this.route.snapshot.queryParams;
+    return rest;
+  }
+  backLink(): string | unknown[] {
+    const p = this.route.snapshot.queryParams;
+    for (const [key, path] of [
+      ["origem_cliente", "clientes"],
+      ["origem_retorno", "retornos"],
+    ]) {
+      if (/^[1-9][0-9]{0,9}$/.test(p[key] || "")) return ["/" + path, p[key]];
+    }
+    return "/visitas";
   }
   hasUnsavedChanges(): boolean {
-    return this.saving() || (this.editing() && this.form.dirty);
+    return (
+      this.saving() ||
+      (this.editing() && this.form.dirty) ||
+      (this.confirming() && this.resultForm.dirty)
+    );
   }
   private active(generation: number, id: number): boolean {
     return (
@@ -276,6 +397,9 @@ export class DetailPage {
     this.editing.set(false);
     this.confirming.set(false);
     this.form.reset();
+    this.resultForm.reset();
+    this.form.controls.empresa.enable();
+    this.form.controls.contato.enable();
     const notice = this.creationNotice;
     this.creationNotice = null;
     try {
@@ -320,6 +444,8 @@ export class DetailPage {
       assunto: visit.assunto,
       descricao: visit.descricao,
     });
+    if (visit.cliente_id) this.form.controls.empresa.disable();
+    if (visit.contato_id) this.form.controls.contato.disable();
     this.error.set("");
     this.errors.set({});
     this.message.set("");
@@ -353,7 +479,23 @@ export class DetailPage {
     if (!this.confirming() || !this.editable() || this.saving()) {
       return;
     }
-    await this.patch({ status: "concluida" }, "Visita concluída com sucesso.");
+    this.resultForm.markAllAsTouched();
+    if (this.resultForm.invalid) return;
+    const f = this.resultForm.getRawValue();
+    await this.patch(
+      {
+        status: "concluida",
+        resultado: f.resultado as ResultadoVisita,
+        resumo_resultado: f.resumo_resultado,
+        proximo_passo: f.proximo_passo,
+        data_retorno: f.data_retorno || null,
+      },
+      "Visita concluída com sucesso.",
+    );
+  }
+  completeSubmit(event: Event): void {
+    event.preventDefault();
+    void this.complete();
   }
   private async patch(
     data: Parameters<Api["update"]>[1],
@@ -378,6 +520,7 @@ export class DetailPage {
       this.editing.set(false);
       this.confirming.set(false);
       this.form.markAsPristine();
+      this.resultForm.markAsPristine();
     } catch (error) {
       if (!this.active(generation, id)) {
         return;

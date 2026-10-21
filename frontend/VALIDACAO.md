@@ -1,3 +1,13 @@
+# Clientes e retornos — 16/10/2026
+
+- 76 testes aprovados em 7 arquivos: 53 da base/agenda e 23 novos de clientes, contatos, CNPJ, calendário, seleção com IDs, conclusão com resultado, compatibilidade com concluídas antigas, filtros/volta, permissões da interface, retornos, confirmações e erros HTTP.
+- Contrato de conclusão anterior adaptado para incluir resultado e resumo obrigatórios. O teste de resposta tardia continua cobrindo conclusão após navegação.
+- Testes novos encontraram recarregamento indevido por dependências de signals na carga de cliente; corrigido com rastreamento apenas do ID. Respostas antigas de contatos/histórico não alteram novo registro. Os testes de UI aguardam a conclusão das promises HTTP antes de verificar o DOM.
+- Build Angular de produção concluído, sem dependência nova. jsdom/HttpTestingController; integração real de banco no backend, com 22 testes aprovados.
+- Sem teste manual autenticado em navegador/dispositivo com GPS real, MySQL 8 nativo ou teste de carga.
+- Para teste local nesta sessão, 4200 já respondia com outro sistema. Esta aplicação foi iniciada em http://127.0.0.1:4201, com CORS correspondente apenas no ambiente do processo PHP (8000), sem alterar `.env` ou interromper o outro sistema.
+- Sem commit/push. Detalhes e comandos em [CLIENTES-E-RETORNOS.md](../CLIENTES-E-RETORNOS.md). Registros abaixo são históricos.
+
 # Agenda — 15/10/2026
 
 Validação atual: 53 testes aprovados em 6 arquivos e build de produção Angular concluído. Inclui os 40 testes anteriores e 13 novos de agenda (datas, formulários, permissões, filtros e início com vínculo/GPS). jsdom/HttpTestingController; GPS real em navegador autenticado não testado manualmente. Detalhes em [AGENDA.md](../AGENDA.md). Registros abaixo são históricos.

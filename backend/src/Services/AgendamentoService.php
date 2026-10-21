@@ -46,8 +46,10 @@ final class AgendamentoService
             $input['usuario_id'] = (int) $user['id'];
         }
         $data = Agendamento::create($input);
-        $this->db->beginTransaction();
+        $ownsTransaction=!$this->db->inTransaction();
+        if($ownsTransaction){$this->db->beginTransaction();}
         try {
+            $data=(new ClienteService($this->db))->snapshot($user,$data,$data['usuario_id']);
             // Ordem de bloqueio estável também quando funcionário e responsável coincidem.
             $ids = array_unique([$data['usuario_id'], $data['responsavel_id']]); sort($ids);
             $people = []; foreach ($ids as $id) { $people[$id] = $this->users->byId($id, true); }
@@ -57,8 +59,8 @@ final class AgendamentoService
             }
             $data['criado_por'] = (int) $user['id']; $id = $this->items->create($data);
             $this->items->event($id, (int) $user['id'], 'criado', '', null, $data['data_hora_prevista']);
-            $result = $this->find($user, $id); $this->db->commit(); return $result;
-        } catch (\Throwable $e) { if ($this->db->inTransaction()) { $this->db->rollBack(); } throw $e; }
+            $result = $this->find($user, $id); if($ownsTransaction){$this->db->commit();} return $result;
+        } catch (\Throwable $e) { if ($ownsTransaction && $this->db->inTransaction()) { $this->db->rollBack(); } throw $e; }
     }
     public function update(array $user, int $id, array $input): array
     {
@@ -69,6 +71,16 @@ final class AgendamentoService
             if (!Agendamento::canManage($user, $item)) { throw new HttpException(403, 'Sem permissão para alterar.'); }
             if ($item['status'] !== 'pendente') { throw new HttpException(409, 'Somente agendamentos pendentes podem ser alterados.'); }
             $data = Agendamento::change($input);
+            if ($data['acao'] === 'trocar_responsavel') {
+                // Permite seguir com o agendamento quando o responsável original foi desativado ou mudou.
+                if ($data['responsavel_id'] === (int) $item['responsavel_id']) { throw new HttpException(400, 'Escolha outro responsável.'); }
+                $person = $this->users->byId($data['responsavel_id'], true);
+                if (!$person || !$person['ativo'] || $person['perfil'] !== 'responsavel') { throw new HttpException(400, 'Dados inválidos.', ['responsavel_id' => 'Selecione uma pessoa ativa com o perfil adequado.']); }
+                $this->items->changeResponsible($id, $data['responsavel_id']);
+                $reason = mb_substr($data['motivo'] . ' (anterior: ' . $item['responsavel_nome'] . ' #' . $item['responsavel_id'] . ')', 0, 1000, 'UTF-8');
+                $this->items->event($id, (int) $user['id'], 'responsavel_alterado', $reason, null, null);
+                $result = $this->find($user, $id); $this->db->commit(); return $result;
+            }
             $date = $data['data_hora_prevista'] ?? $item['data_hora_prevista'];
             if ($data['acao'] === 'reagendar' && $date === $item['data_hora_prevista']) { throw new HttpException(400, 'Escolha um novo horário.'); }
             $this->items->change($id, $data['acao'] === 'cancelar' ? 'cancelado' : 'pendente', $date);

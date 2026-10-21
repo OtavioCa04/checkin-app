@@ -17,6 +17,12 @@ import { roleLabel } from "./shared";
           >
           <span class="nav-caption">ESPAÇO DE TRABALHO</span>
           <nav>
+            <a routerLink="/clientes" routerLinkActive="active"
+              ><span aria-hidden="true">♧</span> Clientes</a
+            >
+            <a routerLink="/retornos" routerLinkActive="active"
+              ><span aria-hidden="true">↻</span> Retornos</a
+            >
             <a routerLink="/agenda" routerLinkActive="active"
               ><span aria-hidden="true">▦</span> Agenda</a
             >

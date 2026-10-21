@@ -1,10 +1,17 @@
 # Em campo — Sistema de visitas
 
-API REST em PHP/MySQL e interface Angular para check-in com GPS, acompanhamento de visitas, agenda e gestão de usuários.
+## Validação de 20–21/10/2026
+
+Correções de sessão, busca Unicode, saída após cadastro e tabelas no celular; testes e comandos em [VALIDACAO_E2E.md](VALIDACAO_E2E.md). A rodada usa bancos descartáveis e preserva o `.env` e o banco atual. Os resultados de etapas anteriores são históricos.
+
+**Primeira instalação, sem experiência com programação:** siga [LEIA-ME-PRIMEIRO.md](LEIA-ME-PRIMEIRO.md). O kit Windows inclui atalhos numerados para instalar e iniciar localmente na porta 4201.
+
+API REST em PHP/MySQL e interface Angular para check-in com GPS, agenda, clientes/contatos, resultados, retornos e gestão de usuários.
 
 - [Backend: instalação, configuração e endpoints](backend/README.md)
 - [Frontend: instalação, execução e build](frontend/README.md)
 - [Agenda: permissões, atualização e testes](AGENDA.md)
+- [Clientes, contatos, resultados e retornos](CLIENTES-E-RETORNOS.md)
 
 ## Executar localmente
 
@@ -30,3 +37,4 @@ npm start
 Abra http://localhost:4200. Crie sua conta administrativa com o comando descrito no README do backend. Não existem credenciais universais de acesso. O token fica apenas em memória e recarregar a página exige novo login.
 
 Os comandos acima funcionam no PowerShell e no Git Bash. Se PowerShell bloquear `npm.ps1`, use `npm.cmd`. Instruções de testes e build estão nos READMEs de cada aplicação. Arquivos `.env`, dependências, logs e uploads privados são excluídos do versionamento.
+

@@ -8,6 +8,8 @@ final class TokenRepository
     public function __construct(private PDO $db) {}
     public function create(int $userId, string $hash, string $expires): void
     {
+        $q = $this->db->prepare('DELETE FROM auth_tokens WHERE usuario_id = ? AND expira_em <= UTC_TIMESTAMP()');
+        $q->execute([$userId]);
         $q = $this->db->prepare('INSERT INTO auth_tokens (usuario_id, token_hash, expira_em) VALUES (?, ?, ?)');
         $q->execute([$userId, $hash, $expires]);
     }
@@ -21,5 +23,10 @@ final class TokenRepository
     {
         $q = $this->db->prepare('DELETE FROM auth_tokens WHERE token_hash = ?');
         $q->execute([$hash]);
+    }
+    public function revokeUser(int $userId): void
+    {
+        $q = $this->db->prepare('DELETE FROM auth_tokens WHERE usuario_id = ?');
+        $q->execute([$userId]);
     }
 }

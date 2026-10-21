@@ -6,7 +6,9 @@ final class App
 {
     public static function env(string $key, string $default = ''): string
     {
-        return (string) ($_ENV[$key] ?? getenv($key) ?: $default);
+        // Somente ausência ou texto vazio usam o padrão; "0" é um valor válido.
+        $value = $_ENV[$key] ?? getenv($key);
+        return $value === false || $value === null || $value === '' ? $default : (string) $value;
     }
 
     public static function cors(): void

@@ -1,3 +1,12 @@
+# Clientes e retornos — 16/10/2026
+
+- 33 testes unitários PHP aprovados, incluindo 7 novos de CNPJ, endereço, contatos, vínculos, resultado e datas de calendário.
+- 22 testes de integração aprovados em MariaDB 10.4.32: os 13 anteriores e 9 novos de isolamento, CNPJ concorrente, contato principal concorrente, cadastros inativos, contato de outro cliente, retratos, check-in de agenda vinculada, conclusão atômica com falha por TRIGGER, legado, imutabilidade e retornos/geração concorrente de agenda.
+- A suíte criou banco novo exclusivo visitas_test_<sufixo>, aplicou 001–004 e removeu somente esse banco ao final. Nenhum teste com fixtures/destrutivo foi executado no banco em uso.
+- Sintaxe: 46 arquivos PHP verificados, zero falhas. Build Angular concluído e 76 testes aprovados, conforme validação do frontend.
+- Migração 004 aplicada ao banco local existente. Comparação do conteúdo dos campos anteriores de usuarios, visitas, agendamentos e agendamento_eventos antes/depois confirmou preservação. `.env` manteve SHA-256 610C59E835210E2756F119E8AA191A7B2E088E4385DF46F86B2C0B1FE307315B.
+- MySQL 8 nativo, teste de carga e teste manual autenticado com GPS real não executados. Sem commit/push nesta etapa. Regras e comandos em [CLIENTES-E-RETORNOS.md](../CLIENTES-E-RETORNOS.md).
+
 # Agenda — 15/10/2026
 
 Validação atual: 26 testes unitários e 13 testes de integração em MariaDB 10.4.32 aprovados; sintaxe PHP verificada. Inclui novas permissões, datas UTC, cancelamento/auditoria, rollback e concorrência ao iniciar visita. Banco temporário de integração criado e removido. Migração 003 aplicada ao banco local com conteúdo anterior preservado; `.env` inalterado. MySQL 8 nativo e teste manual com GPS real não executados. Detalhes em [AGENDA.md](../AGENDA.md). Registros abaixo são históricos.

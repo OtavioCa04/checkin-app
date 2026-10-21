@@ -1,5 +1,15 @@
 # Em campo — Angular 21
 
+## Rodada de validação — 21/10/2026
+
+78 testes aprovados e build de produção executado. Para máquinas com pouca memória: `npm test -- --runner-config=vitest.serial.config.ts` (PowerShell: `npm.cmd test -- --runner-config=vitest.serial.config.ts`). A configuração mantém todos os testes e limita os processos concorrentes. Fluxo real no navegador com GPS simulado e limites em [VALIDACAO_E2E.md](../VALIDACAO_E2E.md). As contagens de etapas anteriores abaixo são históricas.
+
+## Clientes, resultados e retornos — 16/10/2026
+
+Menus **Clientes** e **Retornos** adicionados. Cadastros/contatos, situação e atribuição administrativa, histórico autorizado, seleção de cliente/contato na agenda/check-in, resultado obrigatório na conclusão e geração explícita de agenda de retorno. Formulários preservam sessão em memória, proteção de saída, permissões e idempotência.
+
+Atualização: aplique a migração 004 no backend (`composer migrate`, sem substituir `.env`), depois `npm ci`, `npm test`, `npm run build` e `npm start` no frontend. Comandos completos para **PowerShell e Git Bash**, campos, limites e endpoints em [CLIENTES-E-RETORNOS.md](../CLIENTES-E-RETORNOS.md); resultados em [VALIDACAO.md](VALIDACAO.md). Datas de retorno representam dias YYYY-MM-DD e são exibidas sem conversão de fuso; horário da agenda continua UTC/local.
+
 ## Agenda de visitas — 15/10/2026
 
 Nova tela **/agenda** no menu: dia, semana ou período livre; filtros de situação e funcionário (admin), agendar, reagendar, cancelar, histórico e início com GPS pelo check-in existente. Pendentes vencidos aparecem como atrasados. Realizados/cancelados não oferecem alterações.
@@ -17,7 +27,7 @@ Node 20.19+, 22.12+ ou 24+, npm e backend em http://127.0.0.1:8000. Antes, execu
 PowerShell, na raiz do projeto:
 
 ```powershell
-Set-Location outputs/frontend
+Set-Location frontend
 npm ci
 npm test
 npm run build
@@ -27,7 +37,7 @@ npm start
 Git Bash:
 
 ```bash
-cd outputs/frontend
+cd frontend
 npm ci
 npm test
 npm run build
@@ -66,7 +76,7 @@ A tentativa incerta fica em memória da tela: sair deliberadamente/recarregar po
 
 ## Detalhes, filtros e avisos de saída
 
-Detalhes exibem nomes atuais e IDs de funcionário/responsável. Edição só envia campos textuais; conclusão envia status=concluida. GPS, identidade, responsável e horários oficiais não são editáveis. 409 recarrega estado atual.
+Detalhes exibem nomes atuais e IDs de funcionário/responsável e preservam o retrato cadastral. Edição envia campos textuais permitidos; conclusão envia status=concluida, resultado, resumo e, opcionalmente, próximo passo/dia de retorno. GPS, identidade, responsável, retratos e horários oficiais não são editáveis. 409 recarrega estado atual.
 
 Carregamento/gravação têm identidade e geração. Respostas, erros, mensagens e finally antigos são ignorados após navegar/destruir a tela. **Sair não garante cancelar uma gravação no servidor.** Consulte o registro para confirmar.
 
@@ -100,3 +110,4 @@ Prefixo /api/v1: POST /auth/login; GET /auth/me; POST /auth/logout; GET /respons
 Veja [VALIDACAO.md](VALIDACAO.md). Testes usam HttpTestingController, promises controladas para atraso e GPS simulado apenas nos spec. Integração concorrente real em backend/tests/mysql.php cria um banco novo dedicado, removido ao final.
 
 No ambiente de validação foi usado Node 24.19.0 do runtime. TEMP/TMP foram apontados para work/test-temp, evitando restrições do sandbox no temporário do Windows. Não foi alterada a instalação do usuário. Em terminal normal, use npm test.
+

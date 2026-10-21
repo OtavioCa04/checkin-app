@@ -31,8 +31,8 @@ import { VisitListPage } from "./pages/lists";
 import { UserListPage } from "./pages/users";
 import { codePointLength, freshCoordinates, maxCharacters } from "./shared";
 import { unsavedGuard } from "./unsaved";
-import { RouterTestingHarness } from '@angular/router/testing';
-import { routes } from './routes';
+import { RouterTestingHarness } from "@angular/router/testing";
+import { routes } from "./routes";
 
 const user: Usuario = {
   id: 2,
@@ -95,22 +95,39 @@ describe("confiabilidade e permissões", () => {
   afterEach(() => {
     vi.restoreAllMocks();
   });
-  it('navegação real entre visitas respeita guard de edição e permite sessão expirada', async () => {
-    TestBed.configureTestingModule({providers:[provideRouter(routes,withComponentInputBinding()),{provide:Api,useValue:{visit:vi.fn((id:number)=>Promise.resolve({...visit,id}))}}]});session();
-    const harness=await RouterTestingHarness.create();const page=await harness.navigateByUrl('/visitas/1',DetailPage);page.startEdit();page.form.markAsDirty();const confirm=vi.spyOn(window,'confirm').mockReturnValue(false);
-    await harness.navigateByUrl('/visitas/2');expect(TestBed.inject(Router).url).toBe('/visitas/1');expect(confirm).toHaveBeenCalled();
-    TestBed.inject(Session).clear();await harness.navigateByUrl('/login');expect(TestBed.inject(Router).url).toBe('/login');
+  it("navegação real entre visitas respeita guard de edição e permite sessão expirada", async () => {
+    TestBed.configureTestingModule({
+      providers: [
+        provideRouter(routes, withComponentInputBinding()),
+        {
+          provide: Api,
+          useValue: {
+            visit: vi.fn((id: number) => Promise.resolve({ ...visit, id })),
+          },
+        },
+      ],
+    });
+    session();
+    const harness = await RouterTestingHarness.create();
+    const page = await harness.navigateByUrl("/visitas/1", DetailPage);
+    page.startEdit();
+    page.form.markAsDirty();
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    await harness.navigateByUrl("/visitas/2");
+    expect(TestBed.inject(Router).url).toBe("/visitas/1");
+    expect(confirm).toHaveBeenCalled();
+    TestBed.inject(Session).clear();
+    await harness.navigateByUrl("/login");
+    expect(TestBed.inject(Router).url).toBe("/login");
   });
   it("login respeita espera de 429 e evita nova chamada durante cooldown", async () => {
     const auth = {
-      login: vi
-        .fn()
-        .mockRejectedValue(
-          new HttpErrorResponse({
-            status: 429,
-            headers: new HttpHeaders({ "Retry-After": "45" }),
-          }),
-        ),
+      login: vi.fn().mockRejectedValue(
+        new HttpErrorResponse({
+          status: 429,
+          headers: new HttpHeaders({ "Retry-After": "45" }),
+        }),
+      ),
     };
     TestBed.configureTestingModule({
       providers: [provideRouter([]), { provide: Auth, useValue: auth }],
@@ -271,6 +288,10 @@ describe("confiabilidade e permissões", () => {
     await fixture.whenStable();
     const page = fixture.componentInstance;
     page.confirming.set(true);
+    page.resultForm.patchValue({
+      resultado: "realizada",
+      resumo_resultado: "Resumo da visita",
+    });
     const saving = page.complete();
     fixture.componentRef.setInput("id", "2");
     fixture.detectChanges();

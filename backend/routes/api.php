@@ -13,8 +13,11 @@ return static function (Router $router): void {
         $users = new UsuarioRepository($db);
         $auth = new AuthService($users, new TokenRepository($db), new LoginLimiter($db));
         $middleware = new AuthMiddleware($auth);
-        return [new AuthController($auth, $middleware), new VisitaController(new VisitaService($db, new VisitaRepository($db), $users), $middleware), new UsuarioController($users, $middleware, new UsuarioService($db, $users)), new \App\Controllers\AgendamentoController(new \App\Services\AgendamentoService($db, new \App\Repositories\AgendamentoRepository($db), $users), $middleware)];
+        return [new AuthController($auth, $middleware), new VisitaController(new VisitaService($db, new VisitaRepository($db), $users), $middleware), new UsuarioController($users, $middleware, new UsuarioService($db, $users)), new \App\Controllers\AgendamentoController(new \App\Services\AgendamentoService($db, new \App\Repositories\AgendamentoRepository($db), $users), $middleware), new \App\Controllers\ClienteController(new \App\Services\ClienteService($db),$middleware), new \App\Controllers\RetornoController(new \App\Services\RetornoService($db),$middleware)];
     };
+    foreach([['GET','/clientes',4,'index'],['POST','/clientes',4,'create'],['GET','/clientes/{id}',4,'show'],['PATCH','/clientes/{id}',4,'update'],['PATCH','/clientes/{id}/acessos',4,'access'],['GET','/clientes/{id}/contatos',4,'contacts'],['POST','/clientes/{id}/contatos',4,'createContact'],['PATCH','/contatos/{id}',4,'updateContact'],['GET','/clientes/{id}/visitas',4,'visits'],['GET','/clientes/{id}/agendamentos',4,'agenda'],['GET','/retornos',5,'index'],['GET','/retornos/{id}',5,'show'],['PATCH','/retornos/{id}',5,'update'],['POST','/retornos/{id}/agendamento',5,'schedule']] as [$method,$path,$index,$action]){
+        $router->add($method,'/api/v1'.$path,static fn(...$args)=>$controllers()[$index]->$action(...$args));
+    }
     foreach ([['GET', '/agendamentos', 'index'], ['POST', '/agendamentos', 'create'], ['GET', '/agendamentos/opcoes', 'options'], ['GET', '/agendamentos/{id}', 'show'], ['PATCH', '/agendamentos/{id}', 'update']] as [$method, $path, $action]) {
         $router->add($method, '/api/v1' . $path, static fn (...$args) => $controllers()[3]->$action(...$args));
     }

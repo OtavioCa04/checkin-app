@@ -3,7 +3,7 @@ declare(strict_types=1);
 namespace App\Services;
 use App\Core\HttpException;
 use App\Models\Usuario;
-use App\Repositories\UsuarioRepository;
+use App\Repositories\{TokenRepository, UsuarioRepository};
 use PDO;
 
 final class UsuarioService
@@ -52,6 +52,10 @@ final class UsuarioService
                 $before = $this->users->byId($id, true) ?? throw new HttpException(404, 'Usuário não encontrado.');
                 self::protectLastAdmin($before, [...$before, ...$data], $this->users->activeAdmins());
                 $this->users->update($id, $data);
+                // Desativar ou trocar o perfil encerra as sessões; uma reativação exige novo login.
+                if ((array_key_exists('ativo', $data) && !$data['ativo']) || (isset($data['perfil']) && $data['perfil'] !== $before['perfil'])) {
+                    (new TokenRepository($this->db))->revokeUser($id);
+                }
             } else { $id = $this->users->create($data); }
             $result = Usuario::publicData($this->users->byId($id));
             $this->db->commit(); return $result;

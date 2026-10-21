@@ -15,7 +15,8 @@ final class Agendamento
     }
     public static function create(array $input): array
     {
-        $allowed = ['empresa', 'contato', 'assunto', 'observacoes', 'usuario_id', 'responsavel_id', 'data_hora_prevista'];
+        $allowed = ['empresa', 'contato', 'assunto', 'observacoes', 'usuario_id', 'responsavel_id', 'data_hora_prevista', 'cliente_id', 'contato_id'];
+        Cliente::links($input);
         $errors = [];
         foreach (array_diff(array_keys($input), $allowed) as $key) { $errors[$key] = 'Campo não permitido.'; }
         foreach (['empresa' => 180, 'contato' => 150, 'assunto' => 200, 'observacoes' => 10000] as $key => $max) {
@@ -33,8 +34,11 @@ final class Agendamento
     public static function change(array $input): array
     {
         $action = $input['acao'] ?? null;
-        $allowed = $action === 'reagendar' ? ['acao', 'motivo', 'data_hora_prevista'] : ['acao', 'motivo'];
-        if (!in_array($action, ['reagendar', 'cancelar'], true) || array_diff(array_keys($input), $allowed)) { throw new HttpException(400, 'Ação ou campos inválidos.'); }
+        $allowed = match ($action) { 'reagendar' => ['acao', 'motivo', 'data_hora_prevista'], 'trocar_responsavel' => ['acao', 'motivo', 'responsavel_id'], default => ['acao', 'motivo'] };
+        if (!in_array($action, ['reagendar', 'cancelar', 'trocar_responsavel'], true) || array_diff(array_keys($input), $allowed)) { throw new HttpException(400, 'Ação ou campos inválidos.'); }
+        if ($action === 'trocar_responsavel' && (!is_int($input['responsavel_id'] ?? null) || $input['responsavel_id'] < 1 || $input['responsavel_id'] > 4294967295)) {
+            throw new HttpException(400, 'Dados inválidos.', ['responsavel_id' => 'Informe um identificador numérico válido.']);
+        }
         if (!is_string($input['motivo'] ?? null) || trim($input['motivo']) === '' || mb_strlen($input['motivo'], 'UTF-8') > 1000) { throw new HttpException(400, 'Informe o motivo.', ['motivo' => 'Motivo obrigatório, até 1000 caracteres.']); }
         $input['motivo'] = trim($input['motivo']);
         if ($action === 'reagendar') { $input['data_hora_prevista'] = self::date($input['data_hora_prevista'] ?? null, true); }

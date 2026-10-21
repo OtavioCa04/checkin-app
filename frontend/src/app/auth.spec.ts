@@ -123,6 +123,18 @@ describe("autenticação e integração HTTP", () => {
       .flush({}, { status: 401, statusText: "Unauthorized" });
     expect(session.token).toBe(login.access_token);
   });
+  it("401 atrasado de uma sessão anterior não encerra o novo login", () => {
+    session.open(login);
+    TestBed.inject(HttpClient)
+      .get(API_CONFIG.baseUrl + "/visitas")
+      .subscribe({ error: () => {} });
+    const previous = http.expectOne(API_CONFIG.baseUrl + "/visitas");
+    const current = { ...login, access_token: "b".repeat(64) };
+    session.open(current);
+    previous.flush({}, { status: 401, statusText: "Unauthorized" });
+    expect(session.token).toBe(current.access_token);
+    expect(router.navigateByUrl).not.toHaveBeenCalled();
+  });
   it("logout chama revogação e limpa memória", async () => {
     session.open(login);
     const promise = TestBed.inject(Auth).logout();
