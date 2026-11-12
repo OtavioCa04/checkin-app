@@ -25,4 +25,20 @@ final class VisitaController extends Controller
         $user = $this->auth->user();
         Response::success($this->visits->update($user, $id, $this->input()), 'Visita atualizada.');
     }
+    public function uploadPhoto(int $id): void
+    {
+        $user = $this->auth->user(['funcionario']);
+        $file = $_FILES['foto'] ?? null;
+        // Corpo acima de post_max_size chega sem $_FILES: trata como foto grande demais.
+        if ($file === null && (int) ($_SERVER['CONTENT_LENGTH'] ?? 0) > 0) { throw new \App\Core\HttpException(413, 'Foto muito grande.', ['foto' => 'Envie uma foto de até 5 MB.']); }
+        $error = is_array($file) ? (int) ($file['error'] ?? UPLOAD_ERR_NO_FILE) : UPLOAD_ERR_NO_FILE;
+        if (in_array($error, [UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE], true)) { throw new \App\Core\HttpException(413, 'Foto muito grande.', ['foto' => 'Envie uma foto de até 5 MB.']); }
+        if ($error !== UPLOAD_ERR_OK || !is_string($file['tmp_name'] ?? null) || !is_uploaded_file($file['tmp_name'])) { throw new \App\Core\HttpException(400, 'Envie uma foto.', ['foto' => 'Campo foto ausente ou inválido.']); }
+        Response::success($this->visits->savePhoto($user, $id, $file['tmp_name'], (int) $file['size']), 'Foto enviada.', 201);
+    }
+    public function photo(int $id): void
+    {
+        $photo = $this->visits->photo($this->auth->user(), $id);
+        Response::file($photo['path'], $photo['tipo']);
+    }
 }

@@ -1,0 +1,3 @@
+# Proteção extra: o site da API deve apontar para backend/public.
+# Se a hospedagem expuser esta pasta, nada fora de public (.env, src, vendor, fotos) é servido.
+Require all denied

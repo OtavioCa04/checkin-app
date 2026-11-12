@@ -5,6 +5,7 @@ import {
   inject,
   input,
   signal,
+  untracked,
 } from "@angular/core";
 import {
   FormControl,
@@ -29,8 +30,15 @@ import {
 import { dayLabel, snapshotDetails } from "../customer-shared";
 import { Session } from "../session";
 import { TextFields } from "../text-fields";
+import { CHECKIN_MESSAGES, PhotoPicker, photoUploadError } from "../photo";
 @Component({
-  imports: [RouterLink, LocalDatePipe, ReactiveFormsModule, TextFields],
+  imports: [
+    RouterLink,
+    LocalDatePipe,
+    ReactiveFormsModule,
+    TextFields,
+    PhotoPicker,
+  ],
   template: `
     <a class="back-link" [routerLink]="backLink()" [queryParams]="backFilters()"
       >← Voltar</a
@@ -55,6 +63,9 @@ import { TextFields } from "../text-fields";
       </div>
       @if (message()) {
         <div class="notice" role="status">{{ message() }}</div>
+      }
+      @if (warning()) {
+        <div class="alert" role="alert">{{ warning() }}</div>
       }
       @if (v.agendamento_id) {
         <div class="notice">
@@ -110,6 +121,20 @@ import { TextFields } from "../text-fields";
               <dd>{{ v.empresa }}</dd>
               <dt>Assunto</dt>
               <dd>{{ v.assunto }}</dd>
+              <dt>Local</dt>
+              @if (v.local) {
+                <dd>{{ v.local }}</dd>
+              } @else if (hasCoordinates(v)) {
+                <dd>
+                  {{ v.latitude }}, {{ v.longitude }}
+                  @if (hasValue(v.precisao_gps)) {
+                    (precisão {{ v.precisao_gps }} m)
+                  }
+                  <small class="muted">· coordenadas GPS de registro antigo</small>
+                </dd>
+              } @else {
+                <dd>—</dd>
+              }
               <dt>Descrição</dt>
               <dd class="description">{{ v.descricao }}</dd>
               @if (snapshot(v.cadastro_snapshot)) {
@@ -251,29 +276,63 @@ import { TextFields } from "../text-fields";
             </div>
           </div>
           <hr />
-          <h3>Localização registrada</h3>
-          <dl class="gps-data">
-            <dt>Latitude</dt>
-            <dd>{{ v.latitude }}</dd>
-            <dt>Longitude</dt>
-            <dd>{{ v.longitude }}</dd>
-            <dt>Precisão</dt>
-            <dd>{{ v.precisao_gps }} m</dd>
-          </dl>
+          <h3>Foto da visita</h3>
+          @if (v.tem_foto) {
+            @if (photoUrl(); as src) {
+              <img
+                class="visit-photo"
+                [src]="src"
+                [alt]="'Foto registrada na visita a ' + v.empresa"
+              />
+            } @else if (photoError()) {
+              <div class="alert" role="alert">
+                {{ photoError() }}
+                <button class="text-link" (click)="loadPhoto()">
+                  Tentar novamente
+                </button>
+              </div>
+            } @else {
+              <p class="muted" role="status">Carregando foto…</p>
+            }
+          } @else if (canAddPhoto()) {
+            <photo-picker
+              label="Adicionar foto"
+              inputId="detail-photo"
+              [disabled]="uploading()"
+              (changed)="newPhoto.set($event)"
+            />
+            @if (uploadError()) {
+              <div class="alert" role="alert">{{ uploadError() }}</div>
+            }
+            <button
+              type="button"
+              class="button primary compact"
+              data-testid="upload-photo"
+              [disabled]="!newPhoto() || uploading()"
+              (click)="uploadPhoto()"
+            >
+              {{ uploading() ? "Enviando foto…" : "Enviar foto" }}
+            </button>
+          } @else {
+            <p class="muted">Nenhuma foto registrada.</p>
+          }
           <hr />
-          <dl class="gps-data">
+          <dl class="meta-data">
             <dt>Funcionário</dt>
             <dd>
               {{ v.funcionario_nome || "Funcionário" }} (#{{ v.usuario_id }})
             </dd>
-            <dt>Responsável</dt>
-            <dd>
-              {{ v.responsavel_nome || "Responsável" }} (#{{
-                v.responsavel_id
-              }})
-            </dd>
+            @if (v.responsavel_nome) {
+              <dt>Responsável</dt>
+              <dd>
+                {{ v.responsavel_nome }}
+                @if (v.responsavel_id) {
+                  (#{{ v.responsavel_id }})
+                }
+              </dd>
+            }
           </dl>
-          <small class="gps-note"
+          <small class="meta-note"
             >Horários exibidos no fuso deste dispositivo.</small
           >
         </aside>
@@ -297,6 +356,13 @@ export class DetailPage {
   readonly confirming = signal(false);
   readonly saving = signal(false);
   readonly errors = signal<Record<string, string>>({});
+  readonly warning = signal("");
+  readonly photoUrl = signal<string | null>(null);
+  readonly photoError = signal("");
+  readonly newPhoto = signal<Blob | null>(null);
+  readonly uploading = signal(false);
+  readonly uploadError = signal("");
+  private photoGeneration = 0;
   readonly form = textForm();
   readonly day = dayLabel;
   readonly snapshot = snapshotDetails;
@@ -332,10 +398,13 @@ export class DetailPage {
     inject(DestroyRef).onDestroy(() => {
       this.destroyed = true;
       this.generation++;
+      this.photoGeneration++;
+      this.setPhotoUrl(null);
     });
     effect(() => {
       this.id();
-      void this.load();
+      // Só a troca de id recarrega; sinais lidos dentro de load não viram dependência.
+      untracked(() => void this.load());
     });
   }
   backFilters() {
@@ -356,6 +425,8 @@ export class DetailPage {
   hasUnsavedChanges(): boolean {
     return (
       this.saving() ||
+      this.uploading() ||
+      !!this.newPhoto() ||
       (this.editing() && this.form.dirty) ||
       (this.confirming() && this.resultForm.dirty)
     );
@@ -376,6 +447,82 @@ export class DetailPage {
       canEdit(this.session.user, visit)
     );
   }
+  hasValue(value: unknown): boolean {
+    return value !== null && value !== undefined && String(value).trim() !== "";
+  }
+  // Visitas antigas (antes do local digitado) mantêm as coordenadas no histórico.
+  hasCoordinates(v: Visita): boolean {
+    return this.hasValue(v.latitude) && this.hasValue(v.longitude);
+  }
+  canAddPhoto(): boolean {
+    const visit = this.visit();
+    const user = this.session.user;
+    return (
+      !this.busy() &&
+      !!visit &&
+      !visit.tem_foto &&
+      visit.status === "em_andamento" &&
+      !!user &&
+      Number(visit.usuario_id) === Number(user.id)
+    );
+  }
+  private setPhotoUrl(photo: Blob | null): void {
+    const old = this.photoUrl();
+    if (old) URL.revokeObjectURL(old);
+    this.photoUrl.set(photo ? URL.createObjectURL(photo) : null);
+  }
+  async loadPhoto(): Promise<void> {
+    const visit = this.visit();
+    if (!visit?.tem_foto) return;
+    const generation = ++this.photoGeneration;
+    const id = Number(visit.id);
+    this.photoError.set("");
+    this.setPhotoUrl(null);
+    try {
+      const blob = await this.api.visitPhoto(id);
+      if (this.destroyed || generation !== this.photoGeneration) return;
+      this.setPhotoUrl(blob);
+    } catch (error) {
+      if (this.destroyed || generation !== this.photoGeneration) return;
+      this.photoError.set(
+        error instanceof HttpErrorResponse && error.status === 404
+          ? "Foto não encontrada."
+          : "Não foi possível carregar a foto.",
+      );
+    }
+  }
+  async uploadPhoto(): Promise<void> {
+    const visit = this.visit();
+    const photo = this.newPhoto();
+    if (!visit || !photo || this.uploading() || !this.canAddPhoto()) return;
+    const generation = this.generation;
+    const id = Number(visit.id);
+    this.uploading.set(true);
+    this.uploadError.set("");
+    try {
+      const updated = await this.api.uploadVisitPhoto(id, photo);
+      if (!this.active(generation, id)) return;
+      this.newPhoto.set(null);
+      this.visit.set({ ...updated, tem_foto: true });
+      this.warning.set("");
+      this.message.set("Foto adicionada à visita.");
+      void this.loadPhoto();
+    } catch (error) {
+      if (!this.active(generation, id)) return;
+      if (error instanceof HttpErrorResponse && error.status === 409) {
+        // Visita concluída ou foto já enviada: recarrega o estado atual.
+        this.newPhoto.set(null);
+        const reloadGeneration = this.generation + 1;
+        await this.load();
+        if (this.active(reloadGeneration, id))
+          this.error.set(photoUploadError(error));
+      } else {
+        this.uploadError.set(photoUploadError(error));
+      }
+    } finally {
+      if (this.active(generation, id)) this.uploading.set(false);
+    }
+  }
   extraErrors(): string[] {
     return Object.entries(this.errors())
       .filter(
@@ -393,7 +540,14 @@ export class DetailPage {
     this.error.set("");
     this.errors.set({});
     this.message.set("");
+    this.warning.set("");
     this.saving.set(false);
+    this.photoGeneration++;
+    this.setPhotoUrl(null);
+    this.photoError.set("");
+    this.newPhoto.set(null);
+    this.uploading.set(false);
+    this.uploadError.set("");
     this.editing.set(false);
     this.confirming.set(false);
     this.form.reset();
@@ -411,11 +565,15 @@ export class DetailPage {
         return;
       }
       this.visit.set(visit);
+      if (visit.tem_foto) void this.loadPhoto();
       if (
         notice?.["createdVisitId"] === id &&
-        notice["message"] === "Check-in registrado com sucesso"
+        (notice["message"] === CHECKIN_MESSAGES.success ||
+          notice["message"] === CHECKIN_MESSAGES.photoFailed)
       ) {
-        this.message.set("Check-in registrado com sucesso");
+        if (notice["message"] === CHECKIN_MESSAGES.success)
+          this.message.set(CHECKIN_MESSAGES.success);
+        else this.warning.set(CHECKIN_MESSAGES.photoFailed);
         const state = {
           ...(this.location.getState() as Record<string, unknown>),
         };

@@ -15,7 +15,7 @@ final class Agendamento
     }
     public static function create(array $input): array
     {
-        $allowed = ['empresa', 'contato', 'assunto', 'observacoes', 'usuario_id', 'responsavel_id', 'data_hora_prevista', 'cliente_id', 'contato_id'];
+        $allowed = ['empresa', 'contato', 'assunto', 'observacoes', 'usuario_id', 'data_hora_prevista', 'cliente_id', 'contato_id'];
         Cliente::links($input);
         $errors = [];
         foreach (array_diff(array_keys($input), $allowed) as $key) { $errors[$key] = 'Campo não permitido.'; }
@@ -24,9 +24,7 @@ final class Agendamento
             if (!is_string($value) || mb_strlen($value, 'UTF-8') > $max || ($key !== 'observacoes' && trim($value) === '')) { $errors[$key] = "Informe texto de até {$max} caracteres."; }
             else { $input[$key] = trim($value); }
         }
-        foreach (['usuario_id', 'responsavel_id'] as $key) {
-            if (!is_int($input[$key] ?? null) || $input[$key] < 1 || $input[$key] > 4294967295) { $errors[$key] = 'Informe um identificador numérico válido.'; }
-        }
+        if (!is_int($input['usuario_id'] ?? null) || $input['usuario_id'] < 1 || $input['usuario_id'] > 4294967295) { $errors['usuario_id'] = 'Informe um identificador numérico válido.'; }
         if ($errors) { throw new HttpException(400, 'Dados inválidos.', $errors); }
         $input['data_hora_prevista'] = self::date($input['data_hora_prevista'] ?? null, true);
         return $input;
@@ -34,11 +32,8 @@ final class Agendamento
     public static function change(array $input): array
     {
         $action = $input['acao'] ?? null;
-        $allowed = match ($action) { 'reagendar' => ['acao', 'motivo', 'data_hora_prevista'], 'trocar_responsavel' => ['acao', 'motivo', 'responsavel_id'], default => ['acao', 'motivo'] };
-        if (!in_array($action, ['reagendar', 'cancelar', 'trocar_responsavel'], true) || array_diff(array_keys($input), $allowed)) { throw new HttpException(400, 'Ação ou campos inválidos.'); }
-        if ($action === 'trocar_responsavel' && (!is_int($input['responsavel_id'] ?? null) || $input['responsavel_id'] < 1 || $input['responsavel_id'] > 4294967295)) {
-            throw new HttpException(400, 'Dados inválidos.', ['responsavel_id' => 'Informe um identificador numérico válido.']);
-        }
+        $allowed = $action === 'reagendar' ? ['acao', 'motivo', 'data_hora_prevista'] : ['acao', 'motivo'];
+        if (!in_array($action, ['reagendar', 'cancelar'], true) || array_diff(array_keys($input), $allowed)) { throw new HttpException(400, 'Ação ou campos inválidos.'); }
         if (!is_string($input['motivo'] ?? null) || trim($input['motivo']) === '' || mb_strlen($input['motivo'], 'UTF-8') > 1000) { throw new HttpException(400, 'Informe o motivo.', ['motivo' => 'Motivo obrigatório, até 1000 caracteres.']); }
         $input['motivo'] = trim($input['motivo']);
         if ($action === 'reagendar') { $input['data_hora_prevista'] = self::date($input['data_hora_prevista'] ?? null, true); }

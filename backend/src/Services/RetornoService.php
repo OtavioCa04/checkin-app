@@ -25,7 +25,7 @@ final class RetornoService
         if(isset($filters['inicio'],$filters['fim'])&&$filters['inicio']>=$filters['fim']){throw new HttpException(400,'Fim deve ser posterior ao início.');}$filters['referencia']??=gmdate('Y-m-d');
         if(isset($query['status'])){if(!in_array($query['status'],['pendente','realizado','cancelado','atrasado','hoje'],true)){throw new HttpException(400,'Situação inválida.');}$filters['status']=$query['status'];}
         if(isset($query['funcionario_id'])){if($user['perfil']!=='admin'){throw new HttpException(403,'Filtro exclusivo do administrador.');}$id=filter_var($query['funcionario_id'],FILTER_VALIDATE_INT,['options'=>['min_range'=>1,'max_range'=>4294967295]]);if(!$id){throw new HttpException(400,'Funcionário inválido.');}$filters['funcionario_id']=$id;}
-        $column=match($user['perfil']){'admin'=>null,'responsavel'=>'responsavel_id',default=>'usuario_id'};return $this->items->list($column,(int)$user['id'],$limit,$offset,$filters);
+        $column=$user['perfil']==='admin'?null:'usuario_id';return $this->items->list($column,(int)$user['id'],$limit,$offset,$filters);
     }
     public function update(array $user,int $id,array $input):array
     {
@@ -40,7 +40,7 @@ final class RetornoService
             $repo=new AgendamentoRepository($this->db);$agenda=new AgendamentoService($this->db,$repo,new UsuarioRepository($this->db));
             if($item['agendamento_id']!==null){if(!hash_equals($item['agendamento_hash'],$hash)){throw new HttpException(409,'Este retorno já gerou um agendamento. Consulte a agenda.');}$result=$agenda->find($user,(int)$item['agendamento_id']);$this->db->commit();return $result;}
             if($item['status']!=='pendente'){throw new HttpException(409,'Retorno já encerrado.');}
-            $data=['usuario_id'=>(int)$item['usuario_id'],'responsavel_id'=>(int)$item['responsavel_id'],'empresa'=>$item['empresa'],'contato'=>$item['contato'],'assunto'=>$item['assunto'],'observacoes'=>$item['proximo_passo']?:($item['resumo_resultado']??''),'data_hora_prevista'=>$input['data_hora_prevista']];
+            $data=['usuario_id'=>(int)$item['usuario_id'],'empresa'=>$item['empresa'],'contato'=>$item['contato'],'assunto'=>$item['assunto'],'observacoes'=>$item['proximo_passo']?:($item['resumo_resultado']??''),'data_hora_prevista'=>$input['data_hora_prevista']];
             foreach(['cliente_id','contato_id'] as $key){if($item[$key]!==null){$data[$key]=(int)$item[$key];}}
             $result=$agenda->create($user,$data);$repo->linkReturn((int)$result['id'],$id);$this->items->generated($id,$hash);$result=$agenda->find($user,(int)$result['id']);$this->db->commit();return $result;
         }catch(\Throwable $e){if($this->db->inTransaction()){$this->db->rollBack();}throw $e;}

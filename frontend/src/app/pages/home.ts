@@ -91,9 +91,7 @@ export class HomePage {
   get scope(): string {
     return this.session.user?.perfil === "funcionario"
       ? "Aqui estão os registros das suas visitas externas."
-      : this.session.user?.perfil === "responsavel"
-        ? "Acompanhe as visitas atribuídas a você."
-        : "Acompanhe as visitas de toda a equipe.";
+      : "Acompanhe as visitas de toda a equipe.";
   }
   constructor() {
     void this.load();

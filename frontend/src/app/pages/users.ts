@@ -69,7 +69,6 @@ import { warnBeforeUnload } from "../unsaved";
                 <label for="perfil">Perfil</label
                 ><select id="perfil" formControlName="perfil">
                   <option value="funcionario">Funcionário</option>
-                  <option value="responsavel">Responsável</option>
                   <option value="admin">Administrador</option>
                 </select>
               </div>

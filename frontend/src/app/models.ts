@@ -1,4 +1,4 @@
-export type Perfil = "funcionario" | "responsavel" | "admin";
+export type Perfil = "funcionario" | "admin";
 export interface Usuario {
   id: number;
   nome: string;
@@ -6,7 +6,7 @@ export interface Usuario {
   perfil: Perfil;
   ativo: boolean;
 }
-export interface Responsavel {
+export interface Pessoa {
   id: number;
   nome: string;
 }
@@ -37,16 +37,20 @@ export interface Visita {
   agendamento_id?: number | null;
   id: number;
   usuario_id: number;
-  responsavel_id: number;
+  responsavel_id?: number | null;
   contato: string;
   empresa: string;
   assunto: string;
   descricao: string;
   funcionario_nome?: string;
-  responsavel_nome?: string;
-  latitude: string | number;
-  longitude: string | number;
-  precisao_gps: string | number;
+  responsavel_nome?: string | null;
+  /** Local digitado no check-in; nulo em visitas antigas registradas por GPS. */
+  local?: string | null;
+  tem_foto?: boolean;
+  /** Coordenadas existem apenas em visitas antigas; nas novas vêm nulas. */
+  latitude: string | number | null;
+  longitude: string | number | null;
+  precisao_gps: string | number | null;
   data_hora_checkin: string;
   data_hora_checkout: string | null;
   criado_em: string;
@@ -63,11 +67,7 @@ export interface NewVisit extends VisitText {
   cliente_id?: number;
   contato_id?: number;
   agendamento_id?: number;
-  responsavel_id: number;
-  latitude: number;
-  longitude: number;
-  precisao_gps: number;
-  gps_capturado_em: number;
+  local: string;
 }
 export interface VisitFilters {
   inicio?: string;
@@ -105,9 +105,9 @@ export interface Agendamento {
   retorno_id?: number | null;
   id: number;
   usuario_id: number;
-  responsavel_id: number;
+  responsavel_id?: number | null;
   funcionario_nome: string;
-  responsavel_nome: string;
+  responsavel_nome?: string | null;
   empresa: string;
   contato: string;
   assunto: string;
@@ -131,7 +131,6 @@ export interface NovaAgenda {
   cliente_id?: number;
   contato_id?: number;
   usuario_id: number;
-  responsavel_id: number;
   empresa: string;
   contato: string;
   assunto: string;
@@ -139,14 +138,12 @@ export interface NovaAgenda {
   data_hora_prevista: string;
 }
 export interface AgendaChange {
-  acao: "cancelar" | "reagendar" | "trocar_responsavel";
+  acao: "cancelar" | "reagendar";
   motivo: string;
   data_hora_prevista?: string;
-  responsavel_id?: number;
 }
 export interface AgendaOptions {
-  funcionarios: Responsavel[];
-  responsaveis: Responsavel[];
+  funcionarios: Pessoa[];
 }
 export type ResultadoVisita =
   "realizada" | "sem_contato" | "reagendar" | "cancelada";
@@ -200,6 +197,8 @@ export interface ClienteSelection {
   contato_id?: number;
   empresa?: string;
   contato?: string;
+  /** Endereço cadastrado do cliente; sugere o local do check-in. */
+  endereco?: string;
 }
 export interface Retorno {
   id: number;
@@ -210,9 +209,9 @@ export interface Retorno {
   contato: string;
   assunto: string;
   usuario_id: number;
-  responsavel_id: number;
+  responsavel_id?: number | null;
   funcionario_nome: string;
-  responsavel_nome: string;
+  responsavel_nome?: string | null;
   proximo_passo: string | null;
   resumo_resultado: string;
   data_prevista: string;

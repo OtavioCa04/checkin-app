@@ -26,6 +26,14 @@ function request(string $method,string $path,?string $token=null,?array $data=nu
     preg_match('/\s(\d{3})\s/',$responseHeaders[0]??'',$m);
     return ['status'=>(int)($m[1]??0),'body'=>$body===false?'':$body,'json'=>json_decode($body?:'{}',true),'headers'=>implode("\n",$responseHeaders)];
 }
+function upload(string $path,?string $token,string $bytes,string $type):array{
+    global $port;$boundary='----emcampo'.bin2hex(random_bytes(8));
+    $body="--$boundary\r\nContent-Disposition: form-data; name=\"foto\"; filename=\"foto\"\r\nContent-Type: $type\r\n\r\n$bytes\r\n--$boundary--\r\n";
+    $headers=["Content-Type: multipart/form-data; boundary=$boundary"];if($token!==null){$headers[]='Authorization: Bearer '.$token;}
+    $context=stream_context_create(['http'=>['method'=>'POST','header'=>implode("\r\n",$headers),'content'=>$body,'ignore_errors'=>true,'timeout'=>10]]);
+    $raw=@file_get_contents("http://127.0.0.1:$port/api/v1$path",false,$context);preg_match('/\s(\d{3})\s/',($http_response_header??[])[0]??'',$m);
+    return ['status'=>(int)($m[1]??0),'json'=>json_decode($raw?:'{}',true)];
+}
 function callApi(string $method,string $path,int $expected,?string $token=null,?array $data=null,array $headers=[]):mixed{
     $r=request($method,$path,$token,$data,$headers);ensure($r['status']===$expected);ensure(is_array($r['json'])&&$r['json']['success']===($expected<400));
     ensure(!str_contains($r['body'],'senha_hash')&&!str_contains($r['body'],'SQLSTATE'));
@@ -37,7 +45,7 @@ try{
     $server->exec("CREATE DATABASE `$target` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");$created=true;
     $_ENV['DB_DATABASE']=$target;require dirname(__DIR__).'/bin/migrate.php';$db=Database::connection();$users=new UsuarioRepository($db);
     $credentials=bin2hex(random_bytes(18));$identities=[];
-    foreach(['admin','admin','funcionario','funcionario','responsavel','responsavel'] as $i=>$role){$identities[]=$users->create(['nome'=>'HTTP Fictício '.$i,'email'=>"http$i@example.test",'senha_hash'=>password_hash($credentials,PASSWORD_DEFAULT),'perfil'=>$role,'ativo'=>true]);}
+    foreach(['admin','admin','funcionario','funcionario','admin','admin'] as $i=>$role){$identities[]=$users->create(['nome'=>'HTTP Fictício '.$i,'email'=>"http$i@example.test",'senha_hash'=>password_hash($credentials,PASSWORD_DEFAULT),'perfil'=>$role,'ativo'=>true]);}
     $environment=[...getenv(),'DB_HOST'=>$host,'DB_PORT'=>$dbPort,'DB_DATABASE'=>$target,'DB_USERNAME'=>$username,'DB_PASSWORD'=>$password,'LOGIN_IP_LIMIT'=>'100','LOGIN_ACCOUNT_LIMIT'=>'10','CORS_ORIGINS'=>'http://localhost:4202','TRUSTED_PROXIES'=>''];
     $process=proc_open([PHP_BINARY,'-d','variables_order=EGPCS','-S',"127.0.0.1:$port",'-t','public','public/index.php'],[0=>['pipe','r'],1=>['file',$log,'a'],2=>['file',$log,'a']],$pipes,dirname(__DIR__),$environment);
     if(!is_resource($process)){throw new RuntimeException('Servidor não iniciou.');}fclose($pipes[0]);
@@ -49,12 +57,12 @@ try{
         callApi('GET','/auth/me',401);
     });
     $client=null;$contact=null;$scheduled=null;$visit=null;$return=null;$payload=null;$key=bin2hex(random_bytes(16));
-    scenario('HTTP cliente, contato, agenda e check-in com GPS simulado',function()use(&$client,&$contact,&$scheduled,&$visit,&$payload,$key,$tokens,$identities,$db){
+    scenario('HTTP cliente, contato, agenda e check-in com local digitado',function()use(&$client,&$contact,&$scheduled,&$visit,&$payload,$key,$tokens,$identities,$db){
         $client=callApi('POST','/clientes',201,$tokens[2],['nome_empresa'=>'Empresa HTTP 😀','logradouro'=>'Rua original']);
         ensure(count(callApi('GET','/clientes?q='.rawurlencode('😀'),200,$tokens[2])['items'])===1);
         $contact=callApi('POST',"/clientes/{$client['id']}/contatos",201,$tokens[2],['nome'=>'Contato fictício','principal'=>true]);
-        $scheduled=callApi('POST','/agendamentos',201,$tokens[2],['empresa'=>'Texto','contato'=>'Texto','assunto'=>'Reunião HTTP','observacoes'=>'Observação','responsavel_id'=>$identities[4],'data_hora_prevista'=>gmdate('Y-m-d\TH:i:s\Z',time()+86400),'cliente_id'=>(int)$client['id'],'contato_id'=>(int)$contact['id']]);
-        $payload=['empresa'=>'Texto','contato'=>'Texto','assunto'=>'Reunião HTTP','descricao'=>'Descrição com acentos 😀','responsavel_id'=>$identities[4],'latitude'=>-23.55,'longitude'=>-46.63,'precisao_gps'=>15,'gps_capturado_em'=>(int)floor(microtime(true)*1000),'cliente_id'=>(int)$client['id'],'contato_id'=>(int)$contact['id'],'agendamento_id'=>(int)$scheduled['id']];
+        $scheduled=callApi('POST','/agendamentos',201,$tokens[2],['empresa'=>'Texto','contato'=>'Texto','assunto'=>'Reunião HTTP','observacoes'=>'Observação','data_hora_prevista'=>gmdate('Y-m-d\TH:i:s\Z',time()+86400),'cliente_id'=>(int)$client['id'],'contato_id'=>(int)$contact['id']]);
+        $payload=['empresa'=>'Texto','contato'=>'Texto','assunto'=>'Reunião HTTP','descricao'=>'Descrição com acentos 😀','local'=>'Rua das Flores, 10 😀','cliente_id'=>(int)$client['id'],'contato_id'=>(int)$contact['id'],'agendamento_id'=>(int)$scheduled['id']];
         $visit=callApi('POST','/visitas',201,$tokens[2],$payload,['Idempotency-Key: '.$key]);
         ensure($visit['empresa']==='Empresa HTTP 😀'&&(int)$visit['usuario_id']===$identities[2]);
         ensure(abs(time()-strtotime($visit['data_hora_checkin'].' UTC'))<10);
@@ -67,14 +75,30 @@ try{
         callApi('POST','/visitas',409,$tokens[2],$payload,['Idempotency-Key: '.bin2hex(random_bytes(16))]);
         ensure((int)$db->query('SELECT COUNT(*) FROM visitas')->fetchColumn()===1);
     });
-    scenario('dois funcionários e dois responsáveis isolados inclusive consultas diretas',function()use($tokens,&$client,&$contact,&$scheduled,&$visit){
-        foreach([3,5]as$i){foreach(["/clientes/{$client['id']}","/clientes/{$client['id']}/contatos","/visitas/{$visit['id']}","/agendamentos/{$scheduled['id']}"]as$path){callApi('GET',$path,404,$tokens[$i]);}
+    scenario('foto opcional por multipart, servida só com token e escopo',function()use($tokens,&$visit,$db){
+        $png=base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==');
+        try{
+            ensure(upload("/visitas/{$visit['id']}/foto",null,$png,'image/png')['status']===401);
+            ensure(upload("/visitas/{$visit['id']}/foto",$tokens[2],'texto','text/plain')['status']===400);
+            ensure(upload("/visitas/{$visit['id']}/foto",$tokens[3],$png,'image/png')['status']===404);
+            ensure(upload("/visitas/{$visit['id']}/foto",$tokens[0],$png,'image/png')['status']===403);
+            $r=upload("/visitas/{$visit['id']}/foto",$tokens[2],$png,'image/png');ensure($r['status']===201&&$r['json']['data']['tem_foto']===true&&!isset($r['json']['data']['arquivo']));
+            ensure(upload("/visitas/{$visit['id']}/foto",$tokens[2],$png,'image/png')['status']===409);
+            foreach([2,4] as $i){$context=stream_context_create(['http'=>['header'=>'Authorization: Bearer '.$tokens[$i],'ignore_errors'=>true]]);$bytes=file_get_contents("http://127.0.0.1:{$GLOBALS['port']}/api/v1/visitas/{$visit['id']}/foto",false,$context);ensure($bytes===$png&&str_contains(implode("\n",http_get_last_response_headers()??[]),'Content-Type: image/png'));}
+            callApi('GET',"/visitas/{$visit['id']}/foto",404,$tokens[3]);callApi('GET',"/visitas/{$visit['id']}/foto",401);
+            ensure(callApi('GET',"/visitas/{$visit['id']}",200,$tokens[2])['tem_foto']===true);
+        }finally{
+            foreach($db->query('SELECT arquivo FROM visita_fotos')->fetchAll(PDO::FETCH_COLUMN) as $file){@unlink(\App\Services\VisitaService::photoDir().'/'.basename($file));}
+        }
+    });
+    scenario('outro funcionário isolado inclusive consultas diretas e admin vê tudo',function()use($tokens,&$client,&$contact,&$scheduled,&$visit){
+        foreach([3]as$i){foreach(["/clientes/{$client['id']}","/clientes/{$client['id']}/contatos","/visitas/{$visit['id']}","/agendamentos/{$scheduled['id']}"]as$path){callApi('GET',$path,404,$tokens[$i]);}
             foreach(['/clientes?q=Empresa','/visitas?empresa=Empresa','/agendamentos']as$path){ensure(callApi('GET',$path,200,$tokens[$i])['items']===[]);}
             callApi('PATCH',"/visitas/{$visit['id']}",404,$tokens[$i],['descricao'=>'Intrusão']);
             callApi('GET','/usuarios',403,$tokens[$i]);
         }
-        callApi('GET',"/visitas/{$visit['id']}",200,$tokens[4]);callApi('GET','/usuarios',200,$tokens[0]);
-        callApi('PATCH',"/visitas/{$visit['id']}",403,$tokens[4],['descricao'=>'Intrusão']);
+        foreach([4,5]as$i){callApi('GET',"/visitas/{$visit['id']}",200,$tokens[$i]);callApi('GET',"/clientes/{$client['id']}",200,$tokens[$i]);}callApi('GET','/usuarios',200,$tokens[0]);
+        callApi('PATCH',"/visitas/{$visit['id']}",404,$tokens[3],['descricao'=>'Intrusão']);ensure($visit['responsavel_id']===null);
         callApi('GET','/visitas?funcionario_id=4',403,$tokens[2]);
         callApi('PATCH',"/contatos/{$contact['id']}",404,$tokens[3],['nome'=>'Intrusão']);
     });
@@ -86,7 +110,7 @@ try{
         callApi('PATCH',"/visitas/{$visit['id']}",409,$tokens[2],['status'=>'em_andamento']);
         $return=callApi('GET','/retornos',200,$tokens[2])['items'][0];
         ensure((int)$return['visita_id']===(int)$visit['id']&&(int)$db->query('SELECT COUNT(*) FROM retornos')->fetchColumn()===1);
-        foreach([3,5]as$i){callApi('GET',"/retornos/{$return['id']}",404,$tokens[$i]);}
+        callApi('GET',"/retornos/{$return['id']}",404,$tokens[3]);callApi('GET',"/retornos/{$return['id']}",200,$tokens[5]);
     });
     scenario('histórico preserva snapshot e retorno gera uma agenda só',function()use($tokens,&$client,&$visit,&$return,$db){
         callApi('PATCH',"/clientes/{$client['id']}",200,$tokens[2],['nome_empresa'=>'Nome novo','logradouro'=>'Rua nova']);
@@ -122,7 +146,7 @@ try{
     });
     scenario('sessão aberta respeita desativação, perfil atual, expiração e logout',function()use($tokens,$identities,$users,$db){
         $users->update($identities[3],['ativo'=>false]);callApi('GET','/auth/me',401,$tokens[3]);$users->update($identities[3],['ativo'=>true]);
-        $users->update($identities[2],['perfil'=>'responsavel']);callApi('GET','/responsaveis',403,$tokens[2]);ensure(callApi('GET','/auth/me',200,$tokens[2])['perfil']==='responsavel');$users->update($identities[2],['perfil'=>'funcionario']);
+        callApi('GET','/responsaveis',404,$tokens[2]);callApi('GET','/usuarios',403,$tokens[2]);$users->update($identities[2],['perfil'=>'admin']);ensure(callApi('GET','/auth/me',200,$tokens[2])['perfil']==='admin');callApi('GET','/usuarios',200,$tokens[2]);$users->update($identities[2],['perfil'=>'funcionario']);
         $db->prepare('UPDATE auth_tokens SET expira_em=DATE_SUB(UTC_TIMESTAMP(),INTERVAL 1 SECOND) WHERE token_hash=?')->execute([hash('sha256',$tokens[5])]);callApi('GET','/auth/me',401,$tokens[5]);
         callApi('POST','/auth/logout',200,$tokens[4],[]);callApi('GET','/auth/me',401,$tokens[4]);
     });

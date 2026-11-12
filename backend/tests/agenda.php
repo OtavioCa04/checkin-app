@@ -13,11 +13,11 @@ test('agenda exige motivo e limita campos de alteração', function (): void {
     rejects(fn () => Agendamento::change(['acao' => 'realizado', 'motivo' => 'Teste']), 400);
     check(Agendamento::change(['acao' => 'cancelar', 'motivo' => ' Motivo '])['motivo'] === 'Motivo');
 });
-test('troca de responsável exige id numérico e não aceita outros campos', function (): void {
-    check(Agendamento::change(['acao' => 'trocar_responsavel', 'motivo' => 'Inativo', 'responsavel_id' => 4])['responsavel_id'] === 4);
-    rejects(fn () => Agendamento::change(['acao' => 'trocar_responsavel', 'motivo' => 'Inativo']), 400);
-    rejects(fn () => Agendamento::change(['acao' => 'trocar_responsavel', 'motivo' => 'Inativo', 'responsavel_id' => '4']), 400);
-    rejects(fn () => Agendamento::change(['acao' => 'trocar_responsavel', 'motivo' => 'Inativo', 'responsavel_id' => 4, 'data_hora_prevista' => '2028-01-01T00:00:00Z']), 400);
+test('agenda não aceita responsável na criação nem troca de responsável', function (): void {
+    $planned = ['empresa' => 'Empresa', 'contato' => 'Contato', 'assunto' => 'Assunto', 'usuario_id' => 2, 'data_hora_prevista' => '2099-01-01T12:00:00Z'];
+    check(!isset(Agendamento::create($planned)['responsavel_id']));
+    rejects(fn () => Agendamento::create([...$planned, 'responsavel_id' => 3]), 400);
+    rejects(fn () => Agendamento::change(['acao' => 'trocar_responsavel', 'motivo' => 'Inativo', 'responsavel_id' => 4]), 400);
     rejects(fn () => Agendamento::change(['acao' => 'cancelar', 'motivo' => 'Teste', 'responsavel_id' => 4]), 400);
 });
 test('configuração mantém "0" e usa padrão só para ausente ou vazio', function (): void {
@@ -30,7 +30,7 @@ test('configuração mantém "0" e usa padrão só para ausente ou vazio', funct
 test('agenda separa leitura de gestão conforme identidade e perfil', function (): void {
     $item = ['usuario_id' => 2, 'responsavel_id' => 3];
     foreach ([['id'=>1,'perfil'=>'admin'],['id'=>2,'perfil'=>'funcionario']] as $user) { check(Agendamento::canManage($user, $item)); check(Agendamento::canRead($user, $item)); }
-    check(Agendamento::canRead(['id'=>3,'perfil'=>'responsavel'], $item));
+    check(!Agendamento::canRead(['id'=>3,'perfil'=>'responsavel'], $item));
     check(!Agendamento::canManage(['id'=>3,'perfil'=>'responsavel'], $item));
     check(!Agendamento::canRead(['id'=>4,'perfil'=>'funcionario'], $item));
 });

@@ -192,7 +192,7 @@ $env:CORS_ORIGINS = 'http://localhost:4202'
 php -d variables_order=EGPCS -S 127.0.0.1:8002 -t public public/index.php
 ```
 
-Use uma **cópia** do frontend com `src/app/config.ts` apontando para `http://127.0.0.1:8002/api/v1` e inicie essa cópia com `npm start -- --port 4202`. Para repetir sem GPS físico, aplique o simulador apenas nessa cópia de testes ou use ferramentas de simulação do navegador. Depois da sessão, encerre os dois servidores e remova somente o banco descartável cujo nome foi criado para ela. Não use os lançadores de migração da aplicação com configurações de produção.
+Use uma **cópia** do frontend com `public/config.js` apontando para `http://127.0.0.1:8002/api/v1` e inicie essa cópia com `npm start -- --port 4202`. Para repetir sem GPS físico, aplique o simulador apenas nessa cópia de testes ou use ferramentas de simulação do navegador. Depois da sessão, encerre os dois servidores e remova somente o banco descartável cujo nome foi criado para ela. Não use os lançadores de migração da aplicação com configurações de produção.
 
 ## Limites e verificações ainda necessárias
 

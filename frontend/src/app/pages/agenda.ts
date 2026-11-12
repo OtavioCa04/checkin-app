@@ -115,9 +115,7 @@ import { warnBeforeUnload } from "../unsaved";
               ? "Agendar visita"
               : mode === "reagendar"
                 ? "Reagendar visita"
-                : mode === "responsavel"
-                  ? "Trocar responsável"
-                  : "Cancelar agendamento"
+                : "Cancelar agendamento"
           }}
         </h2>
         @if (selected(); as item) {
@@ -125,17 +123,17 @@ import { warnBeforeUnload } from "../unsaved";
         }
         <form [formGroup]="form" (ngSubmit)="save()" novalidate>
           @if (mode === "novo" && loadingOptions()) {
-            <p role="status">Carregando funcionários e responsáveis ativos…</p>
+            <p role="status">Carregando funcionários ativos…</p>
           }
           @if (
             mode === "novo" &&
             !loadingOptions() &&
             !optionsError() &&
-            (!options().funcionarios.length || !options().responsaveis.length)
+            !options().funcionarios.length
           ) {
             <div class="notice">
-              É necessário ter um funcionário e um responsável ativos para
-              agendar. Solicite apoio ao administrador.
+              É necessário ter um funcionário ativo para agendar. Solicite apoio
+              ao administrador.
             </div>
           }
           <fieldset [disabled]="saving()">
@@ -167,15 +165,6 @@ import { warnBeforeUnload } from "../unsaved";
                     }
                   </select>
                 </div>
-                <div class="field">
-                  <label for="schedule-resp">Responsável *</label
-                  ><select id="schedule-resp" formControlName="responsavel_id">
-                    <option [ngValue]="null">Selecione</option>
-                    @for (r of options().responsaveis; track r.id) {
-                      <option [ngValue]="r.id">{{ r.nome }}</option>
-                    }
-                  </select>
-                </div>
               </div>
               <div class="field">
                 <label for="schedule-notes">Observações (opcional)</label
@@ -184,19 +173,6 @@ import { warnBeforeUnload } from "../unsaved";
                   formControlName="observacoes"
                   rows="3"
                 ></textarea>
-              </div>
-            }
-            @if (mode === "responsavel") {
-              <div class="field">
-                <label for="schedule-new-resp">Novo responsável *</label
-                ><select id="schedule-new-resp" formControlName="responsavel_id">
-                  <option [ngValue]="null">Selecione</option>
-                  @for (r of options().responsaveis; track r.id) {
-                    @if (r.id !== Number(selected()?.responsavel_id)) {
-                      <option [ngValue]="r.id">{{ r.nome }}</option>
-                    }
-                  }
-                </select>
               </div>
             }
             @if (mode === "novo" || mode === "reagendar") {
@@ -249,9 +225,7 @@ import { warnBeforeUnload } from "../unsaved";
                   ? "Salvando…"
                   : mode === "cancelar"
                     ? "Confirmar cancelamento"
-                    : mode === "responsavel"
-                      ? "Salvar responsável"
-                      : "Salvar agendamento"
+                    : "Salvar agendamento"
               }}
             </button>
           </div>
@@ -290,8 +264,10 @@ import { warnBeforeUnload } from "../unsaved";
                 </p>
                 <p class="muted">Contato: {{ item.contato }}</p>
                 <p class="muted">
-                  Funcionário: {{ item.funcionario_nome }} · Responsável:
-                  {{ item.responsavel_nome }}
+                  Funcionário: {{ item.funcionario_nome }}
+                  @if (item.responsavel_nome) {
+                    · Responsável: {{ item.responsavel_nome }}
+                  }
                 </p>
                 <p class="agenda-notes">{{ item.observacoes }}</p>
               </div>
@@ -310,14 +286,7 @@ import { warnBeforeUnload } from "../unsaved";
                     [disabled]="saving()"
                     (click)="edit(item, 'cancelar')"
                   >
-                    Cancelar</button
-                  ><button
-                    type="button"
-                    class="button secondary"
-                    [disabled]="saving()"
-                    (click)="edit(item, 'responsavel')"
-                  >
-                    Trocar responsável
+                    Cancelar
                   </button>
                 }
                 @if (canStart(item)) {
@@ -325,7 +294,7 @@ import { warnBeforeUnload } from "../unsaved";
                     class="button primary"
                     routerLink="/nova-visita"
                     [queryParams]="{ agendamento_id: item.id }"
-                    >Iniciar visita com GPS ↗</a
+                    >Iniciar visita ↗</a
                   >
                 }
                 @if (item.visita_id) {
@@ -414,7 +383,6 @@ export class AgendaPage {
   readonly items = signal<Agendamento[]>([]);
   readonly options = signal<AgendaOptions>({
     funcionarios: [],
-    responsaveis: [],
   });
   readonly loadingOptions = signal(false);
   readonly optionsError = signal("");
@@ -427,9 +395,8 @@ export class AgendaPage {
   readonly errors = signal<string[]>([]);
   readonly selected = signal<Agendamento | null>(null);
   readonly editor = signal<
-    "novo" | "reagendar" | "cancelar" | "responsavel" | null
+    "novo" | "reagendar" | "cancelar" | null
   >(null);
-  readonly Number = Number;
   readonly historyItem = signal<Agendamento | null>(null);
   readonly historyLoading = signal(false);
   readonly now = signal(Date.now());
@@ -467,7 +434,6 @@ export class AgendaPage {
       validators: [maxCharacters(10000)],
     }),
     usuario_id: new FormControl<number | null>(null, Validators.required),
-    responsavel_id: new FormControl<number | null>(null, Validators.required),
     data: new FormControl("", {
       nonNullable: true,
       validators: Validators.required,
@@ -594,7 +560,7 @@ export class AgendaPage {
     this.error.set("");
     this.errors.set([]);
   }
-  edit(item: Agendamento, mode: "reagendar" | "cancelar" | "responsavel"): void {
+  edit(item: Agendamento, mode: "reagendar" | "cancelar"): void {
     if (
       this.saving() ||
       !this.canManage(item) ||
@@ -633,12 +599,10 @@ export class AgendaPage {
           c.assunto,
           c.observacoes,
           c.usuario_id,
-          c.responsavel_id,
           c.data,
         ].some((x) => x.invalid)
       : c.motivo.invalid ||
-          (this.editor() === "reagendar" && c.data.invalid) ||
-          (this.editor() === "responsavel" && c.responsavel_id.invalid);
+          (this.editor() === "reagendar" && c.data.invalid);
   }
   async save(): Promise<void> {
     if (this.saving() || !this.editor()) return;
@@ -674,17 +638,13 @@ export class AgendaPage {
           assunto: f.assunto,
           observacoes: f.observacoes,
           usuario_id: Number(f.usuario_id),
-          responsavel_id: Number(f.responsavel_id),
           data_hora_prevista: date,
         });
       else
         await this.api.changeSchedule(Number(this.selected()!.id), {
-          acao: mode === "responsavel" ? "trocar_responsavel" : mode,
+          acao: mode,
           motivo: f.motivo,
           ...(mode === "reagendar" ? { data_hora_prevista: date } : {}),
-          ...(mode === "responsavel"
-            ? { responsavel_id: Number(f.responsavel_id) }
-            : {}),
         });
       if (this.destroyed) return;
       this.form.markAsPristine();
@@ -695,9 +655,7 @@ export class AgendaPage {
           ? "Agendamento cancelado."
           : mode === "reagendar"
             ? "Visita reagendada."
-            : mode === "responsavel"
-              ? "Responsável alterado."
-              : "Agendamento criado.",
+            : "Agendamento criado.",
       );
       this.offset.set(0);
       await this.load();

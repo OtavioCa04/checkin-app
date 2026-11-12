@@ -10,7 +10,7 @@ final class ClienteService
 {
     private ClienteRepository $clients;
     public function __construct(private PDO $db) { $this->clients=new ClienteRepository($db); }
-    private function column(array $user): ?string { return match($user['perfil']){'admin'=>null,'responsavel'=>'responsavel_id',default=>'usuario_id'}; }
+    private function column(array $user): ?string { return $user['perfil']==='admin'?null:'usuario_id'; }
     public static function active(array $query): ?bool
     {
         if(!isset($query['ativo'])||$query['ativo']===''){return null;}if(!in_array($query['ativo'],['0','1',0,1],true)){throw new HttpException(400,'Situação inválida.');}return (string)$query['ativo']==='1';
@@ -34,7 +34,6 @@ final class ClienteService
     }
     private function statusPermission(array $user,array $input,bool $creating): void
     {
-        if($user['perfil']==='responsavel'){throw new HttpException(403,'Acesso somente para consulta.');}
         if($user['perfil']!=='admin'&&array_key_exists('ativo',$input)&&(!$creating||$input['ativo']!==true)){throw new HttpException(403,'Somente administrador altera a situação.');}
     }
     public function save(array $user,array $input,?int $id=null): array
@@ -79,7 +78,7 @@ final class ClienteService
     {
         Cliente::links($data);if(!isset($data['cliente_id'])){return $data;}$id=$data['cliente_id'];$this->clients->lock($id);$client=$this->find($user,$id);
         $employee??=(int)$user['id'];
-        if($user['perfil']==='responsavel'||!$client['ativo']||!$this->clients->hasAccess($id,$employee)){throw new HttpException(400,'Cliente indisponível para novos registros ou funcionário sem vínculo de acesso.');}
+        if(!$client['ativo']||!$this->clients->hasAccess($id,$employee)){throw new HttpException(400,'Cliente indisponível para novos registros ou funcionário sem vínculo de acesso.');}
         $contact=null;if(isset($data['contato_id'])){$contact=$this->clients->contact($data['contato_id']);if(!$contact||(int)$contact['cliente_id']!==$id||!$contact['ativo']){throw new HttpException(400,'Contato indisponível para este cliente.',['contato_id'=>'Selecione contato ativo do cliente escolhido.']);}}
         $data['empresa']=$client['nome_empresa'];if($contact){$data['contato']=$contact['nome'];}
         $clientSnapshot=array_intersect_key($client,array_flip(['id','nome_empresa','nome_fantasia','cnpj','cep','logradouro','numero','complemento','bairro','cidade','uf','pais']));

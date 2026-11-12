@@ -60,14 +60,13 @@ npm start
 | Perfil | Consulta | Criação | Reagendar/cancelar | Iniciar visita |
 |---|---|---|---|---|
 | Funcionário | Próprios | Próprios | Próprios, pendentes | Próprios, pendentes |
-| Responsável | Atribuídos | Não | Não | Não |
 | Administrador | Todos | Para funcionários ativos | Todos os pendentes | Não |
 
-Novos agendamentos exigem funcionário e responsável ativos com os respectivos perfis. Funcionário autenticado não pode escolher outro proprietário. GET /usuarios e GET /responsaveis mantêm as permissões anteriores. A agenda tem suas próprias opções mínimas (somente IDs e nomes). O backend aplica todas as regras e retorna 404 para registros fora do escopo.
+Novos agendamentos exigem um funcionário ativo; não há mais campo de responsável. Funcionário autenticado não pode escolher outro proprietário. GET /usuarios continua exclusivo do admin. A agenda tem suas próprias opções mínimas (somente IDs e nomes). O backend aplica todas as regras e retorna 404 para registros fora do escopo.
 
 Estados persistidos: `pendente`, `realizado`, `cancelado`. A interface calcula `atrasado` para pendente com horário vencido; o filtro atrasado usa UTC_TIMESTAMP no backend. Não há job que cancele automaticamente. `pendente` inclui atrasados. É permitido iniciar um pendente antes ou depois do horário previsto. Realizado significa que o check-in foi criado, independentemente de o checkout já ter ocorrido.
 
-Reagendar e cancelar exigem motivo (até 1000 pontos Unicode). Só pendentes podem mudar. Data nova/criação deve ser futura segundo o servidor. Histórico registra autor, horário oficial UTC, ação, motivo, data anterior e nova. Trocar responsável (`trocar_responsavel`) também exige motivo e aceita só responsável ativo; o histórico guarda o anterior no motivo. Use quando o responsável original foi desativado, pois o check-in exige responsável ativo. Não há exclusão, reabertura, troca de funcionário ou edição dos demais dados do planejamento: cancele e crie outro se necessário. Alterações de perfil/inativação preservam vínculos existentes.
+Reagendar e cancelar exigem motivo (até 1000 pontos Unicode). Só pendentes podem mudar. Data nova/criação deve ser futura segundo o servidor. Histórico registra autor, horário oficial UTC, ação, motivo, data anterior e nova. Registros antigos podem ter o evento `responsavel_alterado` no histórico, mantido só para consulta. Não há exclusão, reabertura, troca de funcionário ou edição dos demais dados do planejamento: cancele e crie outro se necessário. Alterações de perfil/inativação preservam vínculos existentes.
 
 ## Contratos da API
 
@@ -89,7 +88,6 @@ Exemplo de criação (IDs fictícios; substituir por IDs ativos):
 ```json
 {
   "usuario_id": 2,
-  "responsavel_id": 3,
   "empresa": "Empresa Teste",
   "contato": "Contato Teste",
   "assunto": "Apresentação",
@@ -108,17 +106,13 @@ Empresa (180), contato (150), assunto (200) obrigatórios; observações opciona
 {"acao":"cancelar","motivo":"Contato cancelou a reunião."}
 ```
 
-```json
-{"acao":"trocar_responsavel","motivo":"Responsável anterior desligado.","responsavel_id":4}
-```
-
 Para iniciar, a UI abre o check-in existente, preenche contato/empresa/assunto/descrição a partir das observações e fixa o responsável do agendamento. Revise os dados e preencha a descrição se o planejamento não tinha observações. Capture GPS atual. POST /visitas recebe os campos já documentados, mais `agendamento_id` numérico, mantendo `Idempotency-Key`. Funcionário e check-in oficial continuam vindos da identidade e do relógio do servidor. Campos textuais do registro realizado podem refletir o que aconteceu em campo.
 
 ## Concorrência e atomicidade
 
 A transação do check-in reserva a chave idempotente e bloqueia o agendamento com FOR UPDATE. Confere proprietário, pendência e responsável; cria visita, altera estado para realizado, grava evento e snapshot da resposta no mesmo commit. Qualquer falha desfaz tudo. O índice UNIQUE em visitas.agendamento_id garante no máximo uma visita mesmo sob requisições com chaves diferentes; múltiplos NULL preservam check-ins avulsos. Cancelamento/reagendamento também bloqueiam o mesmo registro. Em uma disputa entre cancelamento e início, uma operação vence e a outra recebe 409. A resposta idempotente já salva continua recuperável após realização.
 
-Agenda não guarda GPS antecipado. O cadastro usa a captura do navegador e o horário oficial existente. Não há fotos, e-mails ou relatórios nesta etapa.
+A agenda não guarda local nem foto antecipados: os dois são informados no check-in, com o horário oficial do servidor. Não há e-mails ou relatórios nesta etapa.
 
 ## Validação realizada
 

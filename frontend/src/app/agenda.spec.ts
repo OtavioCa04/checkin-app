@@ -23,9 +23,9 @@ import { dayLabel } from "./customer-shared";
 const schedule: Agendamento = {
   id: 8,
   usuario_id: 2,
-  responsavel_id: 3,
+  responsavel_id: null,
   funcionario_nome: "Funcionário",
-  responsavel_nome: "Responsável",
+  responsavel_nome: null,
   empresa: "Empresa",
   contato: "Contato",
   assunto: "Reunião",
@@ -115,13 +115,11 @@ describe("agenda integrada à API e aos formulários", () => {
   async function page(perfil: Perfil = "funcionario") {
     login(perfil);
     const fixture = TestBed.createComponent(AgendaPage);
-    if (perfil !== "responsavel")
-      http.expectOne(API_CONFIG.baseUrl + "/agendamentos/opcoes").flush({
-        data: {
-          funcionarios: [{ id: 2, nome: "Funcionário" }],
-          responsaveis: [{ id: 3, nome: "Responsável" }],
-        },
-      });
+    http.expectOne(API_CONFIG.baseUrl + "/agendamentos/opcoes").flush({
+      data: {
+        funcionarios: [{ id: 2, nome: "Funcionário" }],
+      },
+    });
     http
       .expectOne((r) => r.url.endsWith("/agendamentos"))
       .flush({ data: { items: [schedule], limit: 20, offset: 0 } });
@@ -129,14 +127,26 @@ describe("agenda integrada à API e aos formulários", () => {
     fixture.detectChanges();
     return fixture;
   }
-  it("responsável consulta e não vê ações de agendar, reagendar, cancelar ou iniciar", async () => {
-    const fixture = await page("responsavel");
-    expect(fixture.componentInstance.canManage(schedule)).toBe(false);
+  it("cartão mostra só o funcionário; responsável aparece apenas em registro histórico", async () => {
+    const fixture = await page("admin");
+    const p = fixture.componentInstance;
+    let text = fixture.nativeElement.textContent;
+    expect(text).toContain("Funcionário: Funcionário");
+    expect(text).not.toContain("Responsável:");
+    expect(text).not.toContain("null");
+    expect(text).not.toContain("Trocar responsável");
+    p.items.set([
+      { ...schedule, responsavel_id: 3, responsavel_nome: "Antigo" },
+    ]);
+    fixture.detectChanges();
+    text = fixture.nativeElement.textContent;
+    expect(text).toContain("Responsável: Antigo");
+  });
+  it("administrador gerencia qualquer agendamento, mas não inicia visita de outro", async () => {
+    const fixture = await page("admin");
+    expect(fixture.componentInstance.canManage(schedule)).toBe(true);
     expect(fixture.componentInstance.canStart(schedule)).toBe(false);
-    const text = fixture.nativeElement.textContent;
-    expect(text).not.toContain("Agendar visita");
-    expect(text).not.toContain("Iniciar visita");
-    expect(text).not.toContain("Reagendar");
+    expect(fixture.nativeElement.textContent).not.toContain("Iniciar visita");
   });
   it("envio do formulário da agenda cancela a submissão nativa e valida sem sair da tela", async () => {
     const fixture = await page();
@@ -161,7 +171,7 @@ describe("agenda integrada à API e aos formulários", () => {
     p.items.set([{ ...schedule, status: "realizado", visita_id: 10 }]);
     fixture.detectChanges();
     expect(fixture.nativeElement.textContent).not.toContain(
-      "Iniciar visita com GPS",
+      "Iniciar visita",
     );
     expect(fixture.nativeElement.textContent).not.toContain("Reagendar");
     expect(
@@ -178,7 +188,6 @@ describe("agenda integrada à API e aos formulários", () => {
       assunto: "Assunto",
       observacoes: "",
       usuario_id: 2,
-      responsavel_id: 3,
       data: "2028-01-02T09:00",
     });
     const saving = p.save();
@@ -191,7 +200,6 @@ describe("agenda integrada à API e aos formulários", () => {
       assunto: "Assunto",
       observacoes: "",
       usuario_id: 2,
-      responsavel_id: 3,
       data_hora_prevista: toUtc("2028-01-02T09:00"),
     });
     req.flush({ data: schedule });
@@ -285,32 +293,25 @@ describe("agenda integrada à API e aos formulários", () => {
     await a;
     expect(p.items()).toEqual([]);
   });
-  it("iniciar usa o formulário existente, pré-preenche e envia vínculo numérico com GPS", async () => {
+  it("iniciar usa o formulário existente, pré-preenche e envia vínculo numérico com local", async () => {
     route.snapshot.queryParamMap = convertToParamMap({ agendamento_id: "8" });
     const navigate = vi
       .spyOn(TestBed.inject(Router), "navigate")
       .mockResolvedValue(true);
     const fixture = TestBed.createComponent(CreatePage);
     http
-      .expectOne(API_CONFIG.baseUrl + "/responsaveis")
-      .flush({ data: [{ id: 3, nome: "Responsável" }] });
-    http
       .expectOne(API_CONFIG.baseUrl + "/agendamentos/8")
       .flush({ data: schedule });
     await fixture.whenStable();
     const p = fixture.componentInstance;
     expect(p.form.controls.empresa.value).toBe("Empresa");
-    expect(p.responsible.disabled).toBe(true);
-    p.coordinates.set({
-      latitude: -23.5,
-      longitude: -46.6,
-      precisao_gps: 10,
-      gps_capturado_em: Date.now(),
-    });
+    p.local.setValue("Rua do Cliente, 50");
     const saving = p.submit();
     const req = http.expectOne(API_CONFIG.baseUrl + "/visitas");
     expect(req.request.body.agendamento_id).toBe(8);
-    expect(req.request.body.responsavel_id).toBe(3);
+    expect(req.request.body.local).toBe("Rua do Cliente, 50");
+    expect(req.request.body).not.toHaveProperty("latitude");
+    expect(req.request.body).not.toHaveProperty("responsavel_id");
     expect(req.request.headers.has("Idempotency-Key")).toBe(true);
     req.flush({ data: { id: 12 } });
     await saving;
@@ -319,7 +320,6 @@ describe("agenda integrada à API e aos formulários", () => {
   it("check-in cancelado bloqueia envio e mostra uma mensagem clara", async () => {
     route.snapshot.queryParamMap = convertToParamMap({ agendamento_id: "8" });
     const fixture = TestBed.createComponent(CreatePage);
-    http.expectOne(API_CONFIG.baseUrl + "/responsaveis").flush({ data: [] });
     http
       .expectOne(API_CONFIG.baseUrl + "/agendamentos/8")
       .flush({ data: { ...schedule, status: "cancelado" } });

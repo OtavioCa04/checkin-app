@@ -34,9 +34,9 @@ try{
     require dirname(__DIR__).'/bin/migrate.php';
     $db=Database::connection();$users=new UsuarioRepository($db);$visits=new VisitaService($db,new VisitaRepository($db),$users);$management=new UsuarioService($db,$users);
     $ids=[];
-    foreach(['admin','admin','funcionario','funcionario','responsavel'] as $i=>$role){$ids[]=$users->create(['nome'=>'Usuário '.$i,'email'=>"teste$i@example.test",'senha_hash'=>password_hash('senha-teste-123',PASSWORD_DEFAULT),'perfil'=>$role,'ativo'=>true]);}
-    $actor=$users->byId($ids[2]);$other=$users->byId($ids[3]);$resp=$users->byId($ids[4]);$admin=$users->byId($ids[0]);
-    $data=['contato'=>'Contato','empresa'=>'Empresa Teste','assunto'=>'Assunto','descricao'=>'Descrição','responsavel_id'=>$ids[4],'latitude'=>-23.5,'longitude'=>-46.6,'precisao_gps'=>10,'gps_capturado_em'=>(int)floor(microtime(true)*1000)];
+    foreach(['admin','admin','funcionario','funcionario'] as $i=>$role){$ids[]=$users->create(['nome'=>'Usuário '.$i,'email'=>"teste$i@example.test",'senha_hash'=>password_hash('senha-teste-123',PASSWORD_DEFAULT),'perfil'=>$role,'ativo'=>true]);}
+    $actor=$users->byId($ids[2]);$other=$users->byId($ids[3]);$resp=$users->byId($ids[1]);$admin=$users->byId($ids[0]);
+    $data=['contato'=>'Contato','empresa'=>'Empresa Teste','assunto'=>'Assunto','descricao'=>'Descrição','local'=>'Rua Teste, 100 - São Paulo'];
     test('idempotência repete snapshot, conflito e isolamento por funcionário',function()use($visits,$actor,$other,$data){
         $key=str_repeat('a',32);$first=$visits->create($actor,$data,$key);$visits->update($actor,(int)$first['id'],['assunto'=>'Atualizado']);
         check($visits->create($actor,$data,$key)==$first);rejects(fn()=>$visits->create($actor,[...$data,'empresa'=>'Outra'],$key),409);
@@ -47,16 +47,41 @@ try{
         check($result[0]['status']===201&&$result[1]['status']===201&&$result[0]['id']===$result[1]['id']);
         check((int)$db->query('SELECT COUNT(*) FROM visitas')->fetchColumn()===3);
     });
-    test('GPS vencido não cria, mas recuperação devolve snapshot já salvo',function()use($actor,$data,$visits){
-        rejects(fn()=>$visits->create($actor,[...$data,'gps_capturado_em'=>$data['gps_capturado_em']-121000],str_repeat('c',32)),400);
-        $expired=$data;$expired['gps_capturado_em']-=1000;
-        $_ENV['GPS_MAX_AGE_SECONDS']='120';$first=$visits->create($actor,$expired,str_repeat('d',32));$_ENV['GPS_MAX_AGE_SECONDS']='1';
-        check($visits->create($actor,$expired,str_repeat('d',32))==$first);$_ENV['GPS_MAX_AGE_SECONDS']='120';
+    test('local digitado é obrigatório, gravado e coordenadas ficam nulas',function()use($actor,$data,$visits){
+        rejects(fn()=>$visits->create($actor,[...$data,'local'=>'  '],str_repeat('c',32)),400);
+        rejects(fn()=>$visits->create($actor,[...$data,'latitude'=>-23.5],str_repeat('c',32)),400);
+        $first=$visits->create($actor,[...$data,'local'=>'  Av. Paulista, 1000  '],str_repeat('d',32));
+        check($first['local']==='Av. Paulista, 1000'&&$first['latitude']===null&&$first['tem_foto']===false);
+        check($visits->create($actor,[...$data,'local'=>'  Av. Paulista, 1000  '],str_repeat('d',32))==$first);
+    });
+    test('foto opcional: uma por visita, só do dono, só em andamento, formato validado',function()use($actor,$other,$admin,$data,$visits,$db){
+        $png=tempnam(sys_get_temp_dir(),'foto');file_put_contents($png,base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='));$txt=tempnam(sys_get_temp_dir(),'foto');file_put_contents($txt,'não é imagem');
+        $saved=[];
+        try{
+            $data=[...$data,'empresa'=>'Fotografia Ltda'];$v=$visits->create($actor,$data,bin2hex(random_bytes(16)));$id=(int)$v['id'];
+            rejects(fn()=>$visits->photo($actor,$id),404);
+            rejects(fn()=>$visits->savePhoto($actor,$id,$txt,filesize($txt)),400);
+            rejects(fn()=>$visits->savePhoto($actor,$id,$png,VisitaService::FOTO_MAX_BYTES+1),413);
+            rejects(fn()=>$visits->savePhoto($other,$id,$png,filesize($png)),404);
+            rejects(fn()=>$visits->savePhoto($admin,$id,$png,filesize($png)),403);
+            $withPhoto=$visits->savePhoto($actor,$id,$png,filesize($png));check($withPhoto['tem_foto']===true&&!isset($withPhoto['arquivo']));
+            $file=$visits->photo($admin,$id);$saved[]=$file['path'];check($file['tipo']==='image/png'&&file_get_contents($file['path'])===file_get_contents($png));
+            check(str_starts_with(realpath($file['path']),realpath(VisitaService::photoDir())));
+            rejects(fn()=>$visits->photo($other,$id),404);
+            rejects(fn()=>$visits->savePhoto($actor,$id,$png,filesize($png)),409);
+            $closed=$visits->create($actor,$data,bin2hex(random_bytes(16)));$visits->update($actor,(int)$closed['id'],['status'=>'concluida','resultado'=>'realizada','resumo_resultado'=>'Resumo']);
+            rejects(fn()=>$visits->savePhoto($actor,(int)$closed['id'],$png,filesize($png)),409);
+            $before=count(glob(VisitaService::photoDir().'/*'));
+            $db->exec("CREATE TRIGGER foto_test_failure BEFORE INSERT ON visita_fotos FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='rollback'");
+            $failed=$visits->create($actor,$data,bin2hex(random_bytes(16)));
+            try{try{$visits->savePhoto($actor,(int)$failed['id'],$png,filesize($png));throw new RuntimeException('Esperava falha');}catch(PDOException $e){check($e->getCode()==='45000');}}finally{$db->exec('DROP TRIGGER foto_test_failure');}
+            check(count(glob(VisitaService::photoDir().'/*'))===$before&&$visits->find($actor,(int)$failed['id'])['tem_foto']===false);
+        }finally{@unlink($png);@unlink($txt);foreach($saved as $p){@unlink($p);}}
     });
     test('filtros mantêm escopos e limites inclusivo/exclusivo',function()use($visits,$actor,$other,$resp,$admin,$db,$ids){
         $db->exec("UPDATE visitas SET data_hora_checkin='2026-10-10 12:00:00'");
         $filter=['inicio'=>'2026-10-10T12:00:00Z','fim'=>'2026-10-10T12:00:01Z','empresa'=>'Empresa','status'=>'em_andamento'];
-        foreach($visits->list($actor,100,0,$filter) as $v){check((int)$v['usuario_id']===$ids[2]&&$v['funcionario_nome']==='Usuário 2'&&$v['responsavel_nome']==='Usuário 4'&&!isset($v['senha_hash']));}
+        foreach($visits->list($actor,100,0,$filter) as $v){check((int)$v['usuario_id']===$ids[2]&&$v['funcionario_nome']==='Usuário 2'&&$v['responsavel_id']===null&&$v['responsavel_nome']===null&&!isset($v['senha_hash']));}
         check(count($visits->list($other,100,0,$filter))===1);check(count($visits->list($resp,100,0,$filter))===4);
         check(count($visits->list($admin,100,0,[...$filter,'funcionario_id'=>$ids[3]]))===1);
         check($visits->list($actor,100,0,['fim'=>'2026-10-10T12:00:00Z'])===[]);
@@ -87,7 +112,7 @@ try{
         $tokens->create($id,str_repeat('1',64),$future);$tokens->create($id,str_repeat('2',64),gmdate('Y-m-d H:i:s',time()-60));
         $management->save($admin,['nome'=>'Sessão Mantida'],$id);check($tokens->user(str_repeat('1',64))!==null);
         $management->save($admin,['ativo'=>false],$id);$management->save($admin,['ativo'=>true],$id);check($tokens->user(str_repeat('1',64))===null);
-        $tokens->create($id,str_repeat('3',64),$future);$management->save($admin,['perfil'=>'responsavel'],$id);check($tokens->user(str_repeat('3',64))===null);
+        $tokens->create($id,str_repeat('3',64),$future);$management->save($admin,['perfil'=>'admin'],$id);check($tokens->user(str_repeat('3',64))===null);$management->save($admin,['perfil'=>'funcionario'],$id);
         $tokens->create($id,str_repeat('4',64),$future);$tokens->create($id,str_repeat('5',64),$future);
         $q=$db->prepare('SELECT COUNT(*) FROM auth_tokens WHERE usuario_id=? AND expira_em<=UTC_TIMESTAMP()');$q->execute([$id]);check((int)$q->fetchColumn()===0);
     });
@@ -99,7 +124,7 @@ try{
         $u=$management->save($admin,['nome'=>'Criado','email'=>'novo@example.test','perfil'=>'funcionario','ativo'=>true,'senha'=>'senha-teste-123']);check(!isset($u['senha_hash']));
         $u=$management->save($admin,['nome'=>'Editado','email'=>'editado@example.test','ativo'=>false],$u['id']);check(!$u['ativo']&&$u['nome']==='Editado');
         rejects(fn()=>$management->save($admin,['nome'=>'Duplicado','email'=>'editado@example.test','perfil'=>'funcionario','senha'=>'senha-teste-123']),409);
-        $management->save($admin,['perfil'=>'responsavel'],$ids[2]);check($visits->list(['id'=>$ids[2],'perfil'=>'responsavel'],100,0)===[]);
+        rejects(fn()=>$management->save($admin,['perfil'=>'responsavel'],$ids[2]),400);
     });
     test('admins concorrentes nunca removem último administrador ativo',function()use($ids,$db,$users,$management){
         $result=concurrent([['action'=>'user','actor'=>$ids[0],'target'=>$ids[1]],['action'=>'user','actor'=>$ids[1],'target'=>$ids[0]]]);

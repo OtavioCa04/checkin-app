@@ -26,12 +26,6 @@ final class UsuarioRepository
         $q->execute();
         return $q->fetchAll();
     }
-    public function activeResponsibles(): array
-    {
-        $q = $this->db->prepare("SELECT id, nome FROM usuarios WHERE perfil = ? AND ativo = 1 ORDER BY nome, id");
-        $q->execute(['responsavel']);
-        return array_map(static fn (array $row): array => ['id' => (int) $row['id'], 'nome' => $row['nome']], $q->fetchAll());
-    }
     public function managementLock(): void { $this->db->query('SELECT id FROM user_management_lock WHERE id = 1 FOR UPDATE')->fetch(); }
     public function activeAdmins(): int { return (int) $this->db->query("SELECT COUNT(*) FROM usuarios WHERE perfil = 'admin' AND ativo = 1")->fetchColumn(); }
     public function create(array $data): int

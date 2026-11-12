@@ -1,0 +1,20 @@
+Options -Indexes
+DirectoryIndex index.html
+
+RewriteEngine On
+# Arquivos e pastas que existem são servidos direto; rotas do app (sem extensão) abrem o index.html.
+# Arquivo ausente com extensão (.js, .css, .png) recebe 404, para não esconder erro de deploy.
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+RewriteCond %{REQUEST_URI} !\.[A-Za-z0-9]+$
+RewriteRule ^ index.html [L]
+
+<IfModule mod_headers.c>
+    # index.html e config.js mudam sem trocar de nome: o navegador sempre confere a versão nova.
+    <FilesMatch "^(index\.html|config\.js)$">
+        Header set Cache-Control "no-cache"
+    </FilesMatch>
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set Referrer-Policy "same-origin"
+</IfModule>

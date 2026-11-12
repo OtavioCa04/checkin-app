@@ -10,9 +10,8 @@ final class ClienteRepository
     private function scope(?string $column, int $userId): array
     {
         if ($column===null) { return ['1=1',[]]; }
-        if (!in_array($column,['usuario_id','responsavel_id'],true)) { throw new \InvalidArgumentException(); }
-        $parts=[]; $values=[];
-        if ($column==='usuario_id') { $parts[]='EXISTS (SELECT 1 FROM cliente_funcionarios cf WHERE cf.cliente_id=c.id AND cf.usuario_id=?)'; $values[]=$userId; }
+        if ($column!=='usuario_id') { throw new \InvalidArgumentException(); }
+        $parts=['EXISTS (SELECT 1 FROM cliente_funcionarios cf WHERE cf.cliente_id=c.id AND cf.usuario_id=?)']; $values=[$userId];
         foreach (['visitas','agendamentos'] as $table) { $parts[]="EXISTS (SELECT 1 FROM {$table} h WHERE h.cliente_id=c.id AND h.{$column}=?)"; $values[]=$userId; }
         return ['('.implode(' OR ',$parts).')',$values];
     }
@@ -63,7 +62,7 @@ final class ClienteRepository
     }
     public function contacts(int $client, int $limit, int $offset, ?bool $active, ?string $column=null, int $userId=0): array
     {
-        if(!in_array($column,[null,'usuario_id','responsavel_id'],true)){throw new \InvalidArgumentException();}
+        if(!in_array($column,[null,'usuario_id'],true)){throw new \InvalidArgumentException();}
         $scope=$column?" AND (EXISTS (SELECT 1 FROM visitas h WHERE h.contato_id=contatos.id AND h.{$column}=?) OR EXISTS (SELECT 1 FROM agendamentos h WHERE h.contato_id=contatos.id AND h.{$column}=?))":'';
         $q=$this->db->prepare('SELECT id,cliente_id,nome,cargo,email,telefone,principal,ativo,criado_por,criado_em,atualizado_em FROM contatos WHERE cliente_id=?'.($active===null?'':' AND ativo=?').$scope.' ORDER BY principal DESC,nome,id LIMIT ? OFFSET ?');$i=1;$q->bindValue($i++,$client,PDO::PARAM_INT);if($active!==null){$q->bindValue($i++,(int)$active,PDO::PARAM_INT);}if($column){$q->bindValue($i++,$userId,PDO::PARAM_INT);$q->bindValue($i++,$userId,PDO::PARAM_INT);}$q->bindValue($i++,$limit,PDO::PARAM_INT);$q->bindValue($i,$offset,PDO::PARAM_INT);$q->execute();return $q->fetchAll();
     }
@@ -77,7 +76,7 @@ final class ClienteRepository
     }
     public function history(int $client, string $kind, ?string $column, int $userId, int $limit, int $offset): array
     {
-        if(!in_array($kind,['visitas','agendamentos'],true)||!in_array($column,[null,'usuario_id','responsavel_id'],true)){throw new \InvalidArgumentException();}
-        $q=$this->db->prepare("SELECT h.*,u.nome AS funcionario_nome,r.nome AS responsavel_nome FROM {$kind} h JOIN usuarios u ON u.id=h.usuario_id JOIN usuarios r ON r.id=h.responsavel_id WHERE h.cliente_id=?".($column?" AND h.{$column}=?":'').' ORDER BY h.id DESC LIMIT ? OFFSET ?');$i=1;$q->bindValue($i++,$client,PDO::PARAM_INT);if($column){$q->bindValue($i++,$userId,PDO::PARAM_INT);}$q->bindValue($i++,$limit,PDO::PARAM_INT);$q->bindValue($i,$offset,PDO::PARAM_INT);$q->execute();return $q->fetchAll();
+        if(!in_array($kind,['visitas','agendamentos'],true)||!in_array($column,[null,'usuario_id'],true)){throw new \InvalidArgumentException();}
+        $q=$this->db->prepare("SELECT h.*,u.nome AS funcionario_nome,r.nome AS responsavel_nome FROM {$kind} h JOIN usuarios u ON u.id=h.usuario_id LEFT JOIN usuarios r ON r.id=h.responsavel_id WHERE h.cliente_id=?".($column?" AND h.{$column}=?":'').' ORDER BY h.id DESC LIMIT ? OFFSET ?');$i=1;$q->bindValue($i++,$client,PDO::PARAM_INT);if($column){$q->bindValue($i++,$userId,PDO::PARAM_INT);}$q->bindValue($i++,$limit,PDO::PARAM_INT);$q->bindValue($i,$offset,PDO::PARAM_INT);$q->execute();return $q->fetchAll();
     }
 }

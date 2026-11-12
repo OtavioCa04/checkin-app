@@ -235,7 +235,6 @@ describe("integração de clientes, contatos, resultados e retornos", () => {
       http.expectOne(API_CONFIG.baseUrl + "/agendamentos/opcoes").flush({
         data: {
           funcionarios: [{ id: 2, nome: "Funcionário" }],
-          responsaveis: [],
         },
       });
     await microtasks();
@@ -326,8 +325,8 @@ describe("integração de clientes, contatos, resultados e retornos", () => {
     expect(p.creating()).toBe(true);
     expect(p.saving()).toBe(false);
   });
-  it("responsável consulta histórico e contatos sem ações de edição ou atribuição", async () => {
-    const fixture = await clientDetail("responsavel", {
+  it("funcionário sem permissão de edição consulta histórico e contatos sem ações de edição ou atribuição", async () => {
+    const fixture = await clientDetail("funcionario", {
       ...client,
       pode_editar: false,
     });
@@ -455,9 +454,6 @@ describe("integração de clientes, contatos, resultados e retornos", () => {
   });
   it("check-in avulso seleciona IDs numéricos e preserva chave idempotente", async () => {
     const fixture = TestBed.createComponent(CreatePage);
-    http
-      .expectOne(API_CONFIG.baseUrl + "/responsaveis")
-      .flush({ data: [{ id: 3, nome: "Responsável" }] });
     await microtasks();
     await fixture.whenStable();
     const p = fixture.componentInstance;
@@ -473,19 +469,15 @@ describe("integração de clientes, contatos, resultados e retornos", () => {
       empresa: "Empresa",
       contato: "Contato",
     });
-    p.responsible.setValue(3);
-    p.coordinates.set({
-      latitude: -23,
-      longitude: -46,
-      precisao_gps: 10,
-      gps_capturado_em: Date.now(),
-    });
+    p.local.setValue("  Av. Paulista, 1000  ");
     const saving = p.submit();
     const req = http.expectOne(API_CONFIG.baseUrl + "/visitas");
     expect(req.request.body.cliente_id).toBe(1);
+    expect(req.request.body.local).toBe("Av. Paulista, 1000");
     expect(req.request.body.contato_id).toBe(5);
     expect(req.request.headers.has("Idempotency-Key")).toBe(true);
     expect(req.request.body).not.toHaveProperty("usuario_id");
+    expect(req.request.body).not.toHaveProperty("responsavel_id");
     req.flush({ data: visit });
     await saving;
   });
@@ -580,8 +572,11 @@ describe("integração de clientes, contatos, resultados e retornos", () => {
     expect(fixture.nativeElement.textContent).toContain("Nenhum retorno");
     expect(fixture.componentInstance.params().offset).toBe(20);
   });
-  it("responsável lê retorno sem poder encerrar ou agendar", async () => {
-    const fixture = await returnDetail("responsavel");
+  it("funcionário lê retorno de outro funcionário sem poder encerrar ou agendar", async () => {
+    const fixture = await returnDetail("funcionario", {
+      ...followup,
+      usuario_id: 9,
+    });
     expect(fixture.componentInstance.canManage()).toBe(false);
     expect(fixture.nativeElement.textContent).not.toContain(
       "Encerrar acompanhamento",
@@ -589,6 +584,18 @@ describe("integração de clientes, contatos, resultados e retornos", () => {
     expect(fixture.nativeElement.textContent).not.toContain(
       "Gerar agendamento",
     );
+  });
+  it("retorno sem responsável não exibe rótulo nem null; histórico mantém o nome", async () => {
+    let fixture = await returnDetail("admin", {
+      ...followup,
+      responsavel_id: null,
+      responsavel_nome: null,
+    });
+    expect(fixture.nativeElement.textContent).not.toContain("Responsável");
+    expect(fixture.nativeElement.textContent).not.toContain("null");
+    fixture.destroy();
+    fixture = await returnDetail("admin");
+    expect(fixture.nativeElement.textContent).toContain("Responsável");
   });
   it("retorno encerrado exibe autor e observação sem ações de mutação", async () => {
     const fixture = await returnDetail("funcionario", {

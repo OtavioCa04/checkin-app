@@ -4,9 +4,11 @@
 
 Correções de sessão, busca Unicode, saída após cadastro e tabelas no celular; testes e comandos em [VALIDACAO_E2E.md](VALIDACAO_E2E.md). A rodada usa bancos descartáveis e preserva o `.env` e o banco atual. Os resultados de etapas anteriores são históricos.
 
+**Publicar na internet (hospedagem com PHP e MySQL):** siga [DEPLOY.md](DEPLOY.md).
+
 **Primeira instalação, sem experiência com programação:** siga [LEIA-ME-PRIMEIRO.md](LEIA-ME-PRIMEIRO.md). O kit Windows inclui atalhos numerados para instalar e iniciar localmente na porta 4201.
 
-API REST em PHP/MySQL e interface Angular para check-in com GPS, agenda, clientes/contatos, resultados, retornos e gestão de usuários.
+API REST em PHP/MySQL e interface Angular para check-in com local digitado e foto opcional, agenda, clientes/contatos, resultados, retornos e gestão de usuários.
 
 - [Backend: instalação, configuração e endpoints](backend/README.md)
 - [Frontend: instalação, execução e build](frontend/README.md)

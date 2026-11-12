@@ -24,7 +24,7 @@ return static function (Router $router): void {
     $router->add('POST', '/api/v1/usuarios', static fn () => $controllers()[2]->create());
     $router->add('PATCH', '/api/v1/usuarios/{id}', static fn (int $id) => $controllers()[2]->update($id));
     $router->add('GET', '/api/v1/health', static fn () => Response::success(['status' => 'ok', 'time' => gmdate('c')]));
-    foreach ([['POST', '/auth/login', 0, 'login'], ['GET', '/auth/me', 0, 'me'], ['POST', '/auth/logout', 0, 'logout'], ['POST', '/visitas', 1, 'create'], ['GET', '/visitas', 1, 'index'], ['GET', '/visitas/{id}', 1, 'show'], ['PATCH', '/visitas/{id}', 1, 'update'], ['GET', '/usuarios', 2, 'index'], ['GET', '/responsaveis', 2, 'responsaveis']] as [$method, $path, $controller, $action]) {
+    foreach ([['POST', '/auth/login', 0, 'login'], ['GET', '/auth/me', 0, 'me'], ['POST', '/auth/logout', 0, 'logout'], ['POST', '/visitas', 1, 'create'], ['GET', '/visitas', 1, 'index'], ['GET', '/visitas/{id}', 1, 'show'], ['PATCH', '/visitas/{id}', 1, 'update'], ['POST', '/visitas/{id}/foto', 1, 'uploadPhoto'], ['GET', '/visitas/{id}/foto', 1, 'photo'],['GET', '/usuarios', 2, 'index']] as [$method, $path, $controller, $action]) {
         $router->add($method, '/api/v1' . $path, static function (...$args) use ($controllers, $controller, $action): void { $controllers()[$controller]->$action(...$args); });
     }
 };

@@ -6,13 +6,14 @@ import { Session } from "./session";
 import { CreatePage } from "./pages/create";
 import { LoginPage } from "./pages/login";
 import { DetailPage } from "./pages/detail";
-import { canEdit, locate, passwordBytes, textForm, utcDate } from "./shared";
+import { canEdit, passwordBytes, textForm, utcDate } from "./shared";
+import { PHOTO_CONFIG, preparePhoto } from "./photo";
+import { clientAddress } from "./customer-shared";
 import { FormControl } from "@angular/forms";
 import { Visita, NewVisit } from "./models";
 const visit: Visita = {
   id: 1,
   usuario_id: 2,
-  responsavel_id: 3,
   contato: "Contato",
   empresa: "Empresa",
   assunto: "Assunto",
@@ -26,7 +27,7 @@ const visit: Visita = {
   atualizado_em: "2026-10-13 12:00:00",
   status: "em_andamento",
 };
-describe("formulários, dados e geolocalização", () => {
+describe("formulários, dados, local e foto", () => {
   afterEach(() => vi.unstubAllGlobals());
   it("campos rejeitam vazios, espaços e texto longo", () => {
     const form = textForm();
@@ -53,7 +54,7 @@ describe("formulários, dados e geolocalização", () => {
       "2026-10-13T12:00:00.000Z",
     );
   });
-  it("concluídas e responsáveis não podem editar", () => {
+  it("concluídas e visitas de outro funcionário não podem editar; admin edita em andamento", () => {
     const user = {
       id: 2,
       nome: "Teste",
@@ -63,72 +64,81 @@ describe("formulários, dados e geolocalização", () => {
     };
     expect(canEdit(user, visit)).toBe(true);
     expect(canEdit(user, { ...visit, status: "concluida" })).toBe(false);
-    expect(canEdit({ ...user, perfil: "responsavel" }, visit)).toBe(false);
+    expect(canEdit({ ...user, id: 9, perfil: "admin" }, visit)).toBe(true);
+    expect(
+      canEdit({ ...user, perfil: "admin" }, { ...visit, status: "concluida" }),
+    ).toBe(false);
     expect(canEdit({ ...user, id: 8 }, visit)).toBe(false);
   });
-  it("GPS produz números e solicita posição atual", async () => {
-    const getCurrentPosition = vi.fn(
-      (
-        success: (position: unknown) => void,
-        _error?: unknown,
-        _options?: PositionOptions,
-      ) =>
-        success({
-          coords: { latitude: -23.5, longitude: -46.6, accuracy: 12 },
-          timestamp: Date.now(),
-        }),
+  it("foto: rejeita não imagem, usa a versão comprimida e limita 5 MB", async () => {
+    const text = new File(["x"], "nota.txt", { type: "text/plain" });
+    await expect(preparePhoto(text)).rejects.toThrow("arquivo de imagem");
+    const original = new File(["abc"], "foto.png", { type: "image/png" });
+    const small = new Blob(["j"], { type: "image/jpeg" });
+    expect(await preparePhoto(original, async () => small)).toBe(small);
+    const huge = new Blob([new Uint8Array(PHOTO_CONFIG.maxBytes + 1)], {
+      type: "image/jpeg",
+    });
+    await expect(preparePhoto(original, async () => huge)).rejects.toThrow(
+      "5 MB",
     );
-    vi.stubGlobal("navigator", { geolocation: { getCurrentPosition } });
-    expect(await locate()).toEqual({
-      latitude: -23.5,
-      longitude: -46.6,
-      precisao_gps: 12,
-      gps_capturado_em: expect.any(Number),
-    });
-    expect(getCurrentPosition.mock.calls[0]?.[2]).toEqual({
-      enableHighAccuracy: true,
-      timeout: 15000,
-      maximumAge: 0,
-    });
   });
-  it("GPS informa permissão negada", async () => {
-    vi.stubGlobal("navigator", {
-      geolocation: {
-        getCurrentPosition: (
-          _success: unknown,
-          error: (arg: unknown) => void,
-        ) => error({ code: 1 }),
-      },
+  it("foto: falha na compressão usa o original aceito ou mostra erro", async () => {
+    const fail = async (): Promise<Blob> => {
+      throw new Error("sem canvas");
+    };
+    const jpeg = new File(["abc"], "foto.jpg", { type: "image/jpeg" });
+    expect(await preparePhoto(jpeg, fail)).toBe(jpeg);
+    const heic = new File(["abc"], "foto.heic", { type: "image/heic" });
+    await expect(preparePhoto(heic, fail)).rejects.toThrow("JPG, PNG ou WebP");
+    const big = new File([new Uint8Array(PHOTO_CONFIG.maxBytes + 1)], "g.jpg", {
+      type: "image/jpeg",
     });
-    await expect(locate()).rejects.toThrow("Permissão de localização negada");
+    await expect(preparePhoto(big, fail)).rejects.toThrow("5 MB");
   });
-  it("GPS informa indisponibilidade, timeout e falta de suporte", async () => {
-    for (const code of [2, 3]) {
-      vi.stubGlobal("navigator", {
-        geolocation: {
-          getCurrentPosition: (
-            _success: unknown,
-            error: (arg: unknown) => void,
-          ) => error({ code }),
+  it("endereço do cliente é unido sem separadores soltos", () => {
+    expect(
+      clientAddress(
+        {
+          logradouro: "Av. Paulista",
+          numero: "1000",
+          complemento: " ",
+          bairro: "",
+          cidade: "São Paulo",
+          uf: "SP",
+          cep: "",
+          pais: "",
         },
-      });
-      await expect(locate()).rejects.toThrow(
-        code === 2 ? "Localização indisponível" : "demorou demais",
-      );
-    }
-    vi.stubGlobal("navigator", {});
-    await expect(locate()).rejects.toThrow("não oferece geolocalização");
+        ", ",
+      ),
+    ).toBe("Av. Paulista 1000, São Paulo SP");
+    expect(clientAddress({ logradouro: "", cidade: "" })).toBe("");
   });
-  it("criação bloqueia ausência de GPS e submissões duplicadas", async () => {
+  it("cliente escolhido sugere o local sem sobrescrever o que foi digitado", async () => {
+    TestBed.configureTestingModule({
+      providers: [provideRouter([]), { provide: Api, useValue: {} }],
+    });
+    const page = TestBed.createComponent(CreatePage).componentInstance;
+    page.chooseCustomer({ cliente_id: 1, empresa: "A", endereco: "Rua A, 1" });
+    expect(page.local.value).toBe("Rua A, 1");
+    page.chooseCustomer({ cliente_id: 2, empresa: "B", endereco: "Rua B, 2" });
+    expect(page.local.value).toBe("Rua B, 2");
+    page.local.setValue("Portaria lateral");
+    page.chooseCustomer({ cliente_id: 3, empresa: "C", endereco: "Rua C, 3" });
+    expect(page.local.value).toBe("Portaria lateral");
+    page.chooseCustomer({ cliente_id: 4, empresa: "D" });
+    expect(page.local.value).toBe("Portaria lateral");
+  });
+  it("criação exige local, envia sem GPS e bloqueia submissões duplicadas", async () => {
     let finish!: (v: Visita) => void;
     const api = {
-      responsibles: vi.fn().mockResolvedValue([{ id: 3, nome: "Responsável" }]),
       create: vi.fn(
         (_data: NewVisit) =>
           new Promise<Visita>((resolve) => {
             finish = resolve;
           }),
       ),
+      uploadVisitPhoto: vi.fn(),
     };
     TestBed.configureTestingModule({
       providers: [provideRouter([]), { provide: Api, useValue: api }],
@@ -142,32 +152,31 @@ describe("formulários, dados e geolocalização", () => {
       assunto: "Assunto",
       descricao: "Descrição",
     });
-    page.responsible.setValue(3);
     await page.submit();
     expect(api.create).not.toHaveBeenCalled();
-    expect(page.gpsError()).toContain("Capture");
-    page.coordinates.set({
-      latitude: -23.5,
-      longitude: -46.6,
-      precisao_gps: 12,
-      gps_capturado_em: Date.now(),
-    });
+    expect(page.localInvalid()).toBe(true);
+    page.local.setValue("Av. Paulista, 1000 – São Paulo");
     const promise = page.submit();
     await page.submit();
     expect(api.create).toHaveBeenCalledTimes(1);
-    expect(api.create.mock.calls[0]?.[0]).toEqual({
+    const body = api.create.mock.calls[0]?.[0];
+    expect(body).toEqual({
       contato: "Contato",
       empresa: "Empresa",
       assunto: "Assunto",
       descricao: "Descrição",
-      responsavel_id: 3,
-      latitude: -23.5,
-      longitude: -46.6,
-      precisao_gps: 12,
-      gps_capturado_em: expect.any(Number),
+      local: "Av. Paulista, 1000 – São Paulo",
     });
+    for (const key of [
+      "latitude",
+      "longitude",
+      "precisao_gps",
+      "gps_capturado_em",
+    ])
+      expect(body).not.toHaveProperty(key);
     finish(visit);
     await promise;
+    expect(api.uploadVisitPhoto).not.toHaveBeenCalled();
     expect(page.saving()).toBe(false);
   });
   it("login inválido não chama API; login válido evita duplicação", async () => {
@@ -231,6 +240,11 @@ describe("formulários, dados e geolocalização", () => {
     await fixture.whenStable();
     fixture.detectChanges();
     expect(fixture.nativeElement.textContent).toContain("apenas para consulta");
+    // Visita antiga sem local continua mostrando as coordenadas, nunca "null".
+    expect(fixture.nativeElement.textContent).toContain("-23.5, -46.6");
+    expect(fixture.nativeElement.textContent).toContain("registro antigo");
+    expect(fixture.nativeElement.textContent).not.toContain("null");
+    expect(fixture.nativeElement.textContent).not.toContain("Adicionar foto");
     expect(fixture.nativeElement.textContent).not.toContain("Editar dados");
     expect(fixture.nativeElement.textContent).not.toContain("Concluir visita");
   });

@@ -8,7 +8,6 @@ test('filtros validam período UTC e escopo por perfil', function (): void {
     rejects(fn()=>VisitFilters::read(['inicio'=>'2026-02-30T00:00:00Z'],'admin'),400);
     rejects(fn()=>VisitFilters::read(['inicio'=>'2026-10-02T00:00:00Z','fim'=>'2026-10-01T00:00:00Z'],'admin'),400);
     rejects(fn()=>VisitFilters::read(['funcionario_id'=>2],'funcionario'),403);
-    rejects(fn()=>VisitFilters::read(['funcionario_id'=>2],'responsavel'),403);
     check(VisitFilters::read(['funcionario_id'=>'2'],'admin')['funcionario_id']===2);
     rejects(fn()=>VisitFilters::read(['empresa'=>[]],'admin'),400);
 });
@@ -18,7 +17,6 @@ test('textos contam pontos Unicode incluindo emojis', function () use ($input): 
 });
 test('hash idempotente normaliza ordem e números', function () use ($input): void {
     check(VisitaService::requestHash($input)===VisitaService::requestHash(array_reverse($input,true)));
-    check(VisitaService::requestHash($input)===VisitaService::requestHash([...$input,'precisao_gps'=>10.0]));
     check(VisitaService::requestHash($input)!==VisitaService::requestHash([...$input,'empresa'=>'Outra']));
 });
 test('gestão valida nome, senha em bytes e booleanos', function (): void {
@@ -58,11 +56,11 @@ final class QueryTestDatabase extends PDO
     public function prepare(string $query,array $options=[]):PDOStatement|false{return $this->statement=new QueryTestStatement($query);}
 }
 test('SQL dos filtros mantém escopo AND e JOIN sem N+1', function (): void {
-    foreach(['usuario_id','responsavel_id'] as $column){
-        $db=new QueryTestDatabase();$repository=new App\Repositories\VisitaRepository($db);
-        $repository->list($column,7,20,0,['empresa'=>'%_!','status'=>'concluida','inicio'=>'2026-10-01 00:00:00']);
-        check(str_contains($db->statement->sql,"WHERE v.{$column} = ? AND"));
-        check(str_contains($db->statement->sql,'u.nome AS funcionario_nome')&&str_contains($db->statement->sql,'r.nome AS responsavel_nome'));
-        check($db->statement->bindings[1]===7&&in_array('%!%!_!!%',$db->statement->bindings,true));
-    }
+    $db=new QueryTestDatabase();$repository=new App\Repositories\VisitaRepository($db);
+    $repository->list('usuario_id',7,20,0,['empresa'=>'%_!','status'=>'concluida','inicio'=>'2026-10-01 00:00:00']);
+    check(str_contains($db->statement->sql,'WHERE v.usuario_id = ? AND'));
+    // Responsável virou histórico opcional: LEFT JOIN mantém visitas novas sem responsável.
+    check(str_contains($db->statement->sql,'u.nome AS funcionario_nome')&&str_contains($db->statement->sql,'LEFT JOIN usuarios r'));
+    check($db->statement->bindings[1]===7&&in_array('%!%!_!!%',$db->statement->bindings,true));
+    try{$repository->list('responsavel_id',7,20,0);throw new RuntimeException('Escopo de responsável deveria ser recusado.');}catch(InvalidArgumentException){}
 });

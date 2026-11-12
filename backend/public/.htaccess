@@ -1,4 +1,6 @@
 Options -Indexes
+# Libera só esta pasta; backend/.htaccess bloqueia o resto do código.
+Require all granted
 RewriteEngine On
 RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
 RewriteRule ^ index.php [QSA,L]

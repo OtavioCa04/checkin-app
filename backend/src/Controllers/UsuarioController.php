@@ -15,11 +15,6 @@ final class UsuarioController extends Controller
         [$limit, $offset] = Pagination::read($_GET);
         Response::success(['items' => array_map([Usuario::class, 'publicData'], $this->users->list($limit, $offset)), 'limit' => $limit, 'offset' => $offset]);
     }
-    public function responsaveis(): void
-    {
-        $this->auth->user(['funcionario']);
-        Response::success($this->users->activeResponsibles());
-    }
     public function create(): void
     {
         $actor = $this->auth->user(['admin']);

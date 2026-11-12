@@ -11,14 +11,16 @@ import { FormControl, ReactiveFormsModule } from "@angular/forms";
 import { ActivatedRoute, Router, RouterLink } from "@angular/router";
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { Api, errorMessage, fieldErrors } from "../api";
-import { Cliente, Contato, Responsavel, Agendamento, Visita } from "../models";
+import { Cliente, Contato, Pessoa, Agendamento, Visita } from "../models";
 import { Session } from "../session";
 import { ClientFields } from "../client-fields";
 import {
+  clientAddress,
   clientForm,
   clientPayload,
   cnpjMask,
   contactForm,
+  joinParts,
 } from "../customer-shared";
 import { LocalDatePipe } from "../shared";
 import { warnBeforeUnload } from "../unsaved";
@@ -32,7 +34,7 @@ import { warnBeforeUnload } from "../unsaved";
         <h1>Clientes</h1>
         <p class="muted">Cadastros disponíveis para seu trabalho.</p>
       </div>
-      @if (session.user?.perfil !== "responsavel") {
+      @if (session.user) {
         <button
           type="button"
           class="button primary"
@@ -554,7 +556,10 @@ export class ClientsPage {
               <strong>{{ row.empresa }} · {{ row.assunto }}</strong>
               <p>
                 {{ row.contato }} · {{ row.funcionario_nome }} ·
-                {{ row.responsavel_nome }} · {{ row.status }}
+                @if (row.responsavel_nome) {
+                  {{ row.responsavel_nome }} ·
+                }
+                {{ row.status }}
               </p>
               <p>{{ historyDate(row) | localDate }}</p>
             </div>
@@ -610,7 +615,7 @@ export class ClientDetailPage {
   readonly errors = signal<string[]>([]);
   readonly form = clientForm();
   readonly mask = cnpjMask;
-  readonly employees = signal<Responsavel[]>([]);
+  readonly employees = signal<Pessoa[]>([]);
   readonly accessIds = new FormControl<number[]>([], { nonNullable: true });
   readonly accessError = signal("");
   readonly contacts = signal<Contato[]>([]);
@@ -898,23 +903,9 @@ export class ClientDetailPage {
       await this.loadContacts();
     }
   }
-  // Junta somente as partes preenchidas, sem separadores soltos.
-  joined(parts: unknown[], separator = " · "): string {
-    return parts
-      .map((p) => (typeof p === "string" ? p.trim() : p == null ? "" : String(p)))
-      .filter(Boolean)
-      .join(separator);
-  }
+  readonly joined = joinParts;
   address(c: Cliente): string {
-    return (
-      this.joined([
-        this.joined([c.logradouro, c.numero, c.complemento], " "),
-        c.bairro,
-        this.joined([c.cidade, c.uf], " "),
-        c.cep,
-        c.pais,
-      ]) || "—"
-    );
+    return clientAddress(c) || "—";
   }
   historyDate(row: Visita | Agendamento): string {
     return "data_hora_prevista" in row

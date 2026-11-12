@@ -1,6 +1,6 @@
 # Clientes, contatos, resultados e retornos — 16/10/2026
 
-Esta etapa amplia a API PHP/MySQL e o Angular existentes. Reutiliza autenticação, autorização de visitas, agenda, GPS, checkout oficial, respostas JSON, paginação e idempotência. Não adiciona dependências, fotos, e-mails, recuperação de senha ou relatórios.
+Esta etapa amplia a API PHP/MySQL e o Angular existentes. Reutiliza autenticação, autorização de visitas, agenda, check-in, checkout oficial, respostas JSON, paginação e idempotência. Não adiciona dependências, fotos, e-mails, recuperação de senha ou relatórios.
 
 ## Atualizar, instalar e iniciar
 
@@ -49,7 +49,7 @@ npm start
 
 Se estiver na pasta de trabalho do Codex, entre primeiro em `outputs`. `php bin/migrate.php` equivale a `composer migrate`. Em PowerShell, use `npm.cmd` se a política bloquear npm.ps1. Requisitos: PHP 8.2+ com pdo_mysql/mbstring, Composer, MySQL e Node compatível com Angular 21. Nenhuma instalação precisa sobrescrever `.env`; `.env.example` serve apenas à primeira instalação.
 
-Abra http://localhost:4200. A API continua em http://127.0.0.1:8000/api/v1. A URL é configurada em frontend/src/app/config.ts. Token permanece somente em memória; recarregar exige login.
+Abra http://localhost:4200. A API continua em http://127.0.0.1:8000/api/v1. A URL é configurada em frontend/public/config.js (copiado para o build e editável no servidor). Token permanece somente em memória; recarregar exige login.
 
 Na sessão de validação, a porta 4200 já respondia com outro sistema. Para testar esta versão foi usada **http://127.0.0.1:4201**, preservando o processo existente e o `.env`. Para repetir essa alternativa, inicie o backend em PowerShell com `$env:CORS_ORIGINS='http://localhost:4200,http://localhost:4201,http://127.0.0.1:4201'` antes de `php -d variables_order=EGPCS -S 127.0.0.1:8000 -t public public/index.php` e o frontend com `npm start -- --port 4201`. No Git Bash use `CORS_ORIGINS='http://localhost:4200,http://localhost:4201,http://127.0.0.1:4201' php -d variables_order=EGPCS -S 127.0.0.1:8000 -t public public/index.php` e `npm start -- --port 4201`. A variável vale somente para o processo/terminal, sem substituir a configuração salva.
 
@@ -65,13 +65,12 @@ Contatos pertencem a um cliente: nome (150) obrigatório; cargo (120), e-mail v�
 |---|---|---|---|
 | Admin | Todos | Todos | Ativa/inativa e define funcionários com acesso |
 | Funcionário | Vínculo explícito ou histórico próprio de visitas/agenda | Clientes com vínculo explícito; novos cadastros recebem o vínculo do criador | Não altera situação nem atribui acesso |
-| Responsável | Clientes presentes nas visitas/agenda atribuídas | Somente leitura | Não altera |
 
-Funcionário com vínculo explícito pode cadastrar e consultar todos os contatos daquele cliente antes da primeira visita. Sem vínculo explícito, o histórico próprio ainda permite leitura do cliente e dos contatos efetivamente utilizados nesse histórico. Responsável lê somente os contatos utilizados em suas visitas/agendamentos. A existência de um cliente compartilhado não libera visitas/agendamentos de outros funcionários: o histórico é filtrado também pelo escopo de cada registro.
+Funcionário com vínculo explícito pode cadastrar e consultar todos os contatos daquele cliente antes da primeira visita. Sem vínculo explícito, o histórico próprio ainda permite leitura do cliente e dos contatos efetivamente utilizados nesse histórico. A existência de um cliente compartilhado não libera visitas/agendamentos de outros funcionários: o histórico é filtrado também pelo escopo de cada registro.
 
 Admin atribui acesso a funcionários ativos. O endpoint substitui a lista explícita inteira, sem reatribuir visitas, agendamentos ou retornos. Remover um vínculo impede novos registros com aquele cliente pelo funcionário; o histórico próprio permanece legível. Cadastros criados por admin precisam de atribuição explícita antes de serem utilizados por um funcionário. Mesmo um agendamento criado pelo admin valida o vínculo do funcionário escolhido.
 
-Todos os IDs recebidos são validados no backend. Busca paginada também respeita o escopo; não há diretório global para funcionários/responsáveis. Cliente fora do escopo retorna 404, alteração não autorizada retorna 403. Apenas admin envia ativo em atualizações. Funcionário pode omitir ativo na criação; o cadastro nasce ativo.
+Todos os IDs recebidos são validados no backend. Busca paginada também respeita o escopo; não há diretório global de funcionários. Cliente fora do escopo retorna 404, alteração não autorizada retorna 403. Apenas admin envia ativo em atualizações. Funcionário pode omitir ativo na criação; o cadastro nasce ativo.
 
 ## Integração e retrato histórico
 
@@ -101,9 +100,9 @@ Resultado, checkout UTC oficial e eventual criação de retorno são gravados na
 
 Informar data_retorno cria uma pendência separada, única por visita. Sem data não há retorno. A data pode representar uma pendência vencida e não é convertida em timestamp. **É dia de calendário, compartilhado entre usuários, independente do fuso.** UI exibe DD/MM/YYYY usando os componentes da string, sem Date/UTC. “Hoje” compara com o dia local do dispositivo. Filtros inicio/fim de retornos também usam YYYY-MM-DD, início incluído e fim excluído. `referencia` define o dia local para filtros hoje/atrasado; a UI envia seu dia atual. Se omitido na API, o padrão é o dia UTC do servidor. Datas da agenda continuam timestamps UTC exatos, convertidos de datetime-local.
 
-Funcionário acompanha seus retornos, responsável consulta atribuídos e admin acompanha todos. Funcionário proprietário/admin podem encerrar como realizado/cancelado com observação obrigatória de até 1000 caracteres. Retorno registra encerrado_por, encerrado_em UTC e observacao; encerrados não podem ser alterados. Nada disso atualiza a visita de origem.
+Funcionário acompanha seus retornos e admin acompanha todos. Funcionário proprietário/admin podem encerrar como realizado/cancelado com observação obrigatória de até 1000 caracteres. Retorno registra encerrado_por, encerrado_em UTC e observacao; encerrados não podem ser alterados. Nada disso atualiza a visita de origem.
 
-Gerar agenda é uma ação explícita e confirmada, com nova data/hora futura. Reutiliza AgendamentoService, responsável/funcionário e dados de origem. Retorno continua pendente. Bloqueio FOR UPDATE do retorno, índice UNIQUE agendamentos.retorno_id e transação conjunta garantem uma agenda sob concorrência. Repetir a mesma data retorna a agenda existente; outra data retorna 409. Uma repetição já concluída continua recuperável mesmo após o horário vencer. Se houver falha de conexão, use Atualizar retorno antes de escolher outro horário. Não há criação automática, e encerrar retorno não cancela a agenda gerada. Ajustes posteriores da agenda usam suas ações existentes.
+Gerar agenda é uma ação explícita e confirmada, com nova data/hora futura. Reutiliza AgendamentoService, o funcionário e os dados de origem. Retorno continua pendente. Bloqueio FOR UPDATE do retorno, índice UNIQUE agendamentos.retorno_id e transação conjunta garantem uma agenda sob concorrência. Repetir a mesma data retorna a agenda existente; outra data retorna 409. Uma repetição já concluída continua recuperável mesmo após o horário vencer. Se houver falha de conexão, use Atualizar retorno antes de escolher outro horário. Não há criação automática, e encerrar retorno não cancela a agenda gerada. Ajustes posteriores da agenda usam suas ações existentes.
 
 ## Novos endpoints
 

@@ -1,5 +1,11 @@
 # Atualização do sistema — 16/10/2026
 
+**12/11/2026, pronto para hospedagem:** o endereço da API agora fica em `config.js` na pasta publicada da interface, editável sem novo build. A interface traz `.htaccess` para abrir as rotas do app direto, e o backend traz `.htaccess` que bloqueia tudo fora de `public` e `.user.ini` com limites de upload para as fotos. Passo a passo em [DEPLOY.md](DEPLOY.md).
+
+**12/11/2026, local digitado e foto:** aplique `007_local_e_foto.sql` pelo runner. O check-in deixa de usar GPS: o funcionário digita o local da visita (obrigatório) e pode anexar uma foto (opcional, até 5 MB, enviada depois do check-in). Visitas antigas mantêm as coordenadas como histórico. As fotos ficam em `backend/storage/uploads/visitas`: inclua essa pasta no backup junto com o banco.
+
+**12/11/2026, dois perfis:** aplique `006_dois_perfis.sql` pelo runner (`composer migrate` ou `2-PREPARAR-BANCO.cmd`). Ela **converte todas as contas de responsável em administrador** e torna opcional o responsável de visitas e agendamentos. O sistema passa a ter só **admin** e **funcionário**: o funcionário não escolhe mais responsável no check-in nem na agenda, a rota GET /responsaveis e a ação de agenda `trocar_responsavel` deixam de existir, e registros antigos mantêm o nome do responsável apenas como histórico. Faça backup do banco antes, porque a conversão de perfil não tem volta automática.
+
 **21/10/2026, correções:** aplique `005_agenda_troca_responsavel.sql` pelo runner (`composer migrate` ou `2-PREPARAR-BANCO.cmd`). Ela só amplia a lista de ações do histórico da agenda; não altera dados. Mudanças: desativar um usuário ou trocar seu perfil encerra as sessões abertas; login correto não consome a cota de tentativas; agendamentos pendentes podem trocar de responsável (com motivo); valores `0` no `.env` deixam de ser ignorados; `create-user.php` informa e-mail duplicado.
 
 **Clientes/resultados/retornos:** aplique `004_clientes_resultados_retornos.sql` pelo runner (`composer migrate`) e atualize o frontend com os comandos abaixo. Preserve `.env` e dados. Novos contratos e regras em [CLIENTES-E-RETORNOS.md](CLIENTES-E-RETORNOS.md). Relatos sobre etapas anteriores abaixo são históricos.

@@ -7,6 +7,30 @@ import {
 import { ClienteInput, Retorno } from "./models";
 import { maxCharacters, nonBlank } from "./shared";
 
+// Junta somente as partes preenchidas, sem separadores soltos.
+export function joinParts(parts: unknown[], separator = " · "): string {
+  return parts
+    .map((p) => (typeof p === "string" ? p.trim() : p == null ? "" : String(p)))
+    .filter(Boolean)
+    .join(separator);
+}
+/** Endereço cadastrado em uma linha; vazio quando o cliente não tem endereço. */
+export function clientAddress(
+  c: Partial<ClienteInput>,
+  separator = " · ",
+): string {
+  return joinParts(
+    [
+      joinParts([c.logradouro, c.numero, c.complemento], " "),
+      c.bairro,
+      joinParts([c.cidade, c.uf], " "),
+      c.cep,
+      c.pais,
+    ],
+    separator,
+  );
+}
+
 export function normalizeCnpj(value: string): string {
   return value
     .trim()

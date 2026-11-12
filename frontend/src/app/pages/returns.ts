@@ -103,8 +103,11 @@ import { warnBeforeUnload } from "../unsaved";
             </p>
             <p>{{ item.proximo_passo || item.resumo_resultado }}</p>
             <p class="muted">
-              {{ item.funcionario_nome }} · {{ item.responsavel_nome }} · Visita
-              #{{ item.visita_id }}
+              {{ item.funcionario_nome }} ·
+              @if (item.responsavel_nome) {
+                {{ item.responsavel_nome }} ·
+              }
+              Visita #{{ item.visita_id }}
             </p>
           </div>
           <a
@@ -297,8 +300,10 @@ export class ReturnsPage {
           </dd>
           <dt>Funcionário</dt>
           <dd>{{ r.funcionario_nome }}</dd>
-          <dt>Responsável</dt>
-          <dd>{{ r.responsavel_nome }}</dd>
+          @if (r.responsavel_nome) {
+            <dt>Responsável</dt>
+            <dd>{{ r.responsavel_nome }}</dd>
+          }
           <dt>Resumo do resultado</dt>
           <dd class="description">{{ r.resumo_resultado }}</dd>
           <dt>Próximo passo</dt>

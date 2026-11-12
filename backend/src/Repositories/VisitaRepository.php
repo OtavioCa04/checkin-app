@@ -8,7 +8,7 @@ final class VisitaRepository
     public function __construct(private PDO $db) {}
     public function create(array $data): int
     {
-        $keys=['usuario_id','responsavel_id','latitude','longitude','precisao_gps','contato','empresa','assunto','descricao','agendamento_id','cliente_id','contato_id','cadastro_snapshot'];
+        $keys=['usuario_id','local','contato','empresa','assunto','descricao','agendamento_id','cliente_id','contato_id','cadastro_snapshot'];
         $q=$this->db->prepare('INSERT INTO visitas ('.implode(',',$keys).',data_hora_checkin) VALUES ('.implode(',',array_fill(0,count($keys),'?')).',UTC_TIMESTAMP())');
         $q->execute(array_map(static fn($key)=>$data[$key]??null,$keys));
         return (int) $this->db->lastInsertId();
@@ -20,13 +20,28 @@ final class VisitaRepository
             $q->execute([$id]);
             if (!$q->fetch()) { return null; }
         }
-        $q = $this->db->prepare('SELECT v.*, u.nome AS funcionario_nome, r.nome AS responsavel_nome FROM visitas v JOIN usuarios u ON u.id = v.usuario_id JOIN usuarios r ON r.id = v.responsavel_id WHERE v.id = ?');
+        $q = $this->db->prepare(self::SELECT . ' WHERE v.id = ?');
+        $q->execute([$id]);
+        $row = $q->fetch();
+        return $row ? self::row($row) : null;
+    }
+    // O nome do arquivo da foto nunca sai da API: a visita informa apenas se tem foto.
+    private const SELECT = 'SELECT v.*, u.nome AS funcionario_nome, r.nome AS responsavel_nome, EXISTS (SELECT 1 FROM visita_fotos f WHERE f.visita_id = v.id) AS tem_foto FROM visitas v JOIN usuarios u ON u.id = v.usuario_id LEFT JOIN usuarios r ON r.id = v.responsavel_id';
+    private static function row(array $row): array { $row['tem_foto'] = (bool) ($row['tem_foto'] ?? false); return $row; }
+    public function addPhoto(int $id, string $file, string $type, int $size, int $author): void
+    {
+        $q = $this->db->prepare('INSERT INTO visita_fotos (visita_id, arquivo, tipo, tamanho, enviado_por) VALUES (?, ?, ?, ?, ?)');
+        $q->execute([$id, $file, $type, $size, $author]);
+    }
+    public function photo(int $id): ?array
+    {
+        $q = $this->db->prepare('SELECT arquivo, tipo FROM visita_fotos WHERE visita_id = ?');
         $q->execute([$id]);
         return $q->fetch() ?: null;
     }
     public function list(?string $column, int $userId, int $limit, int $offset, array $filters = []): array
     {
-        if (!in_array($column, [null, 'usuario_id', 'responsavel_id'], true)) { throw new \InvalidArgumentException('Filtro inválido.'); }
+        if (!in_array($column, [null, 'usuario_id'], true)) { throw new \InvalidArgumentException('Filtro inválido.'); }
         $where = []; $values = [];
         if ($column) { $where[] = "v.{$column} = ?"; $values[] = $userId; }
         foreach (['inicio' => 'v.data_hora_checkin >= ?', 'fim' => 'v.data_hora_checkin < ?', 'status' => 'v.status = ?', 'funcionario_id' => 'v.usuario_id = ?'] as $key => $clause) {
@@ -36,13 +51,13 @@ final class VisitaRepository
             $where[] = "v.empresa LIKE ? ESCAPE '!'";
             $values[] = '%' . str_replace(['!', '%', '_'], ['!!', '!%', '!_'], $filters['empresa']) . '%';
         }
-        $q = $this->db->prepare('SELECT v.*, u.nome AS funcionario_nome, r.nome AS responsavel_nome FROM visitas v JOIN usuarios u ON u.id = v.usuario_id JOIN usuarios r ON r.id = v.responsavel_id' . ($where ? ' WHERE ' . implode(' AND ', $where) : '') . ' ORDER BY v.id DESC LIMIT ? OFFSET ?');
+        $q = $this->db->prepare(self::SELECT . ($where ? ' WHERE ' . implode(' AND ', $where) : '') . ' ORDER BY v.id DESC LIMIT ? OFFSET ?');
         $i = 1;
         foreach ($values as $value) { $q->bindValue($i++, $value, is_int($value) ? PDO::PARAM_INT : PDO::PARAM_STR); }
         $q->bindValue($i++, $limit, PDO::PARAM_INT);
         $q->bindValue($i, $offset, PDO::PARAM_INT);
         $q->execute();
-        return $q->fetchAll();
+        return array_map(self::row(...), $q->fetchAll());
     }
     public function update(int $id, array $data): void
     {

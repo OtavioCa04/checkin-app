@@ -7,7 +7,6 @@ import {
   Page,
   Visita,
   Usuario,
-  Responsavel,
   NewVisit,
   VisitPatch,
   VisitFilters,
@@ -267,6 +266,33 @@ export class Api {
       )
     ).data;
   }
+  /** Envia a foto única da visita (multipart, campo "foto"). */
+  async uploadVisitPhoto(id: number, photo: Blob): Promise<Visita> {
+    const body = new FormData();
+    const extension =
+      photo.type === "image/png"
+        ? "png"
+        : photo.type === "image/webp"
+          ? "webp"
+          : "jpg";
+    body.append("foto", photo, `foto.${extension}`);
+    return (
+      await firstValueFrom(
+        this.http.post<ApiResponse<Visita>>(
+          `${API_CONFIG.baseUrl}/visitas/${id}/foto`,
+          body,
+        ),
+      )
+    ).data;
+  }
+  /** Bytes da foto; passa pelo HttpClient para levar o token Bearer. */
+  visitPhoto(id: number): Promise<Blob> {
+    return firstValueFrom(
+      this.http.get(`${API_CONFIG.baseUrl}/visitas/${id}/foto`, {
+        responseType: "blob",
+      }),
+    );
+  }
   async createUser(data: NewUser): Promise<Usuario> {
     return (
       await firstValueFrom(
@@ -303,15 +329,6 @@ export class Api {
         this.http.get<ApiResponse<Page<Usuario>>>(
           `${API_CONFIG.baseUrl}/usuarios`,
           { params: { limit, offset } },
-        ),
-      )
-    ).data;
-  }
-  async responsibles(): Promise<Responsavel[]> {
-    return (
-      await firstValueFrom(
-        this.http.get<ApiResponse<Responsavel[]>>(
-          `${API_CONFIG.baseUrl}/responsaveis`,
         ),
       )
     ).data;

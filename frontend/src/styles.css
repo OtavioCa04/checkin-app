@@ -710,16 +710,16 @@ fieldset {
   gap: 24px;
   align-items: start;
 }
-.gps-panel {
+.place-panel {
   padding: 28px 24px;
 }
-.gps-panel h2 {
+.place-panel h2 {
   font-size: 18px;
 }
-.gps-panel p {
+.place-panel p {
   font-size: 12px;
 }
-.gps-symbol {
+.place-symbol {
   display: grid;
   place-items: center;
   width: 50px;
@@ -730,42 +730,43 @@ fieldset {
   font-size: 35px;
   margin-bottom: 23px;
 }
-.gps-placeholder {
-  border: 1px dashed #d5dfcb;
-  border-radius: 7px;
-  padding: 30px 12px;
-  text-align: center;
-  font-size: 11px;
-  color: var(--muted);
-  background: #fafcf7;
-  margin: 24px 0;
-}
-.gps-note {
+.meta-note {
   display: block;
   font-size: 10px;
   color: var(--muted);
   line-height: 1.8;
   margin-top: 17px;
 }
-.gps-success {
-  font-size: 11px;
-  color: var(--green);
-  border-radius: 6px;
-  background: #f0f5ea;
-  padding: 12px;
-  margin-top: 22px;
+.place-panel .field {
+  margin-top: 18px;
 }
-.gps-data {
+.place-panel input[type="file"],
+.detail-meta input[type="file"] {
+  max-width: 100%;
+  font-size: 11px;
+}
+.photo-preview,
+.visit-photo {
+  display: block;
+  width: 100%;
+  max-height: 320px;
+  object-fit: contain;
+  border-radius: 7px;
+  border: 1px solid #d5dfcb;
+  background: #fafcf7;
+  margin: 12px 0;
+}
+.meta-data {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 13px;
   font-size: 11px;
   margin: 24px 0;
 }
-.gps-data dt {
+.meta-data dt {
   color: var(--muted);
 }
-.gps-data dd {
+.meta-data dd {
   margin: 0;
   text-align: right;
   overflow-wrap: anywhere;
@@ -1091,16 +1092,16 @@ fieldset {
   .detail-layout {
     grid-template-columns: 1fr;
   }
-  .gps-panel {
+  .place-panel {
     max-width: none;
   }
-  .gps-data {
+  .meta-data {
     max-width: 350px;
   }
-  .gps-panel .full {
+  .place-panel .full {
     max-width: 350px;
   }
-  .detail-meta .gps-data {
+  .detail-meta .meta-data {
     max-width: none;
   }
   .banner-art {
@@ -1209,7 +1210,7 @@ fieldset {
     font-size: 17px;
   }
   .form-panel,
-  .gps-panel {
+  .place-panel {
     padding: 23px 20px;
   }
   .form-grid {
@@ -1301,7 +1302,7 @@ fieldset {
 .panel + .panel {
   margin-top: 22px;
 }
-.gps-data dd {
+.meta-data dd {
   font-size: 11px;
 }
 /* Agenda: a ordem cronológica permanece legível em telas estreitas. */

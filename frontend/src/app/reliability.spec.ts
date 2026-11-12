@@ -20,7 +20,7 @@ import {
 import { BehaviorSubject } from "rxjs";
 import { FormControl } from "@angular/forms";
 import { Api, errorMessage } from "./api";
-import { API_CONFIG, GPS_CONFIG } from "./config";
+import { API_CONFIG } from "./config";
 import { NewVisit, Usuario, Visita } from "./models";
 import { Session } from "./session";
 import { CreatePage } from "./pages/create";
@@ -29,7 +29,7 @@ import { Auth } from "./auth";
 import { DetailPage } from "./pages/detail";
 import { VisitListPage } from "./pages/lists";
 import { UserListPage } from "./pages/users";
-import { codePointLength, freshCoordinates, maxCharacters } from "./shared";
+import { codePointLength, maxCharacters } from "./shared";
 import { unsavedGuard } from "./unsaved";
 import { RouterTestingHarness } from "@angular/router/testing";
 import { routes } from "./routes";
@@ -44,9 +44,9 @@ const user: Usuario = {
 const visit: Visita = {
   id: 1,
   usuario_id: 2,
-  responsavel_id: 3,
+  responsavel_id: null,
   funcionario_nome: "Funcionário",
-  responsavel_nome: "Responsável",
+  responsavel_nome: null,
   contato: "Contato",
   empresa: "Empresa",
   assunto: "Assunto",
@@ -83,13 +83,7 @@ function validCreate(page: CreatePage): void {
     assunto: "Assunto",
     descricao: "Descrição",
   });
-  page.responsible.setValue(3);
-  page.coordinates.set({
-    latitude: -23.5,
-    longitude: -46.6,
-    precisao_gps: 12,
-    gps_capturado_em: Date.now(),
-  });
+  page.local.setValue("Av. Paulista, 1000 – São Paulo");
 }
 describe("confiabilidade e permissões", () => {
   afterEach(() => {
@@ -172,48 +166,27 @@ describe("confiabilidade e permissões", () => {
     expect(maxCharacters(150)(control)).not.toBeNull();
     expect(codePointLength("e\u0301")).toBe(2);
   });
-  it("GPS expira em 2 minutos inclusive no momento de enviar", async () => {
-    const now = Date.now();
-    const gps = {
-      latitude: 1,
-      longitude: 2,
-      precisao_gps: 3,
-      gps_capturado_em: now - 120000,
-    };
-    expect(freshCoordinates(gps, now)).toBe(true);
-    expect(freshCoordinates(gps, now + 1)).toBe(false);
-    const api = {
-      responsibles: vi.fn().mockResolvedValue([{ id: 3, nome: "Responsável" }]),
-      create: vi.fn(),
-    };
+  it("local é obrigatório, sem espaços vazios e limitado a 255 caracteres", async () => {
+    const api = { create: vi.fn() };
     TestBed.configureTestingModule({
       providers: [provideRouter([]), { provide: Api, useValue: api }],
     });
     const page = TestBed.createComponent(CreatePage).componentInstance;
     await Promise.resolve();
     validCreate(page);
-    page.coordinates.set({ ...gps, gps_capturado_em: now - 121000 });
+    page.local.setValue("   ");
     await page.submit();
     expect(api.create).not.toHaveBeenCalled();
-    expect(page.gpsError()).toContain("expirou");
-  });
-  it("limite GPS configurável nunca supera 2 minutos", () => {
-    const old = GPS_CONFIG.maxAgeMs;
-    try {
-      GPS_CONFIG.maxAgeMs = 300000;
-      expect(
-        freshCoordinates(
-          { latitude: 1, longitude: 2, precisao_gps: 3, gps_capturado_em: 1 },
-          120002,
-        ),
-      ).toBe(false);
-    } finally {
-      GPS_CONFIG.maxAgeMs = old;
-    }
+    expect(page.localInvalid()).toBe(true);
+    expect(page.error()).toContain("local");
+    page.local.setValue("😀".repeat(256));
+    await page.submit();
+    expect(api.create).not.toHaveBeenCalled();
+    page.local.setValue("😀".repeat(255));
+    expect(page.local.valid).toBe(true);
   });
   it("falha incerta repete a mesma chave e snapshot; alteração não cria outra visita", async () => {
     const api = {
-      responsibles: vi.fn().mockResolvedValue([{ id: 3, nome: "Responsável" }]),
       create: vi
         .fn()
         .mockRejectedValueOnce(new HttpErrorResponse({ status: 0 }))
@@ -355,7 +328,7 @@ describe("confiabilidade e permissões", () => {
         provideRouter([]),
         {
           provide: Api,
-          useValue: { responsibles: vi.fn().mockResolvedValue([]) },
+          useValue: {},
         },
       ],
     });
@@ -404,11 +377,7 @@ describe("confiabilidade e permissões", () => {
       empresa: "Empresa",
       assunto: "Assunto",
       descricao: "Descrição",
-      responsavel_id: 3,
-      latitude: 1,
-      longitude: 2,
-      precisao_gps: 3,
-      gps_capturado_em: Date.now(),
+      local: "Rua A, 10",
     };
     const creation = api.create(data, "a".repeat(32));
     const post = http.expectOne(API_CONFIG.baseUrl + "/visitas");
@@ -462,19 +431,19 @@ describe("confiabilidade e permissões", () => {
       users: vi.fn().mockResolvedValue({ items: [], limit: 20, offset: 0 }),
       updateUser: vi
         .fn()
-        .mockResolvedValue({ ...user, perfil: "responsavel", ativo: false }),
+        .mockResolvedValue({ ...user, perfil: "admin", ativo: false }),
     };
     TestBed.configureTestingModule({
       providers: [provideRouter([]), { provide: Api, useValue: api }],
     });
     const page = TestBed.createComponent(UserListPage).componentInstance;
     page.edit(user);
-    page.form.patchValue({ perfil: "responsavel", ativo: false });
+    page.form.patchValue({ perfil: "admin", ativo: false });
     await page.save();
     expect(api.updateUser).toHaveBeenCalledWith(2, {
       nome: user.nome,
       email: user.email,
-      perfil: "responsavel",
+      perfil: "admin",
       ativo: false,
     });
     expect(api.updateUser.mock.calls[0][1]).not.toHaveProperty("senha");

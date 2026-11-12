@@ -209,9 +209,7 @@ export class VisitListPage {
   get scope(): string {
     return this.session.user?.perfil === "funcionario"
       ? "Seus encontros em campo, em um só lugar."
-      : this.session.user?.perfil === "responsavel"
-        ? "Visitas atribuídas a você para acompanhamento."
-        : "Todos os registros da equipe.";
+      : "Todos os registros da equipe.";
   }
   constructor() {
     this.route.queryParamMap.pipe(takeUntilDestroyed()).subscribe((params) => {

@@ -1,12 +1,12 @@
 import { Component, DestroyRef, inject, signal } from "@angular/core";
-import { FormControl, ReactiveFormsModule, Validators } from "@angular/forms";
+import { FormControl, ReactiveFormsModule } from "@angular/forms";
 import { ActivatedRoute, Router, RouterLink } from "@angular/router";
 import { Api, errorMessage, fieldErrors } from "../api";
-import { Coordinates, freshCoordinates, locate, textForm } from "../shared";
+import { maxCharacters, nonBlank, textForm } from "../shared";
+import { CHECKIN_MESSAGES, PhotoPicker } from "../photo";
 import {
   Agendamento,
   NewVisit,
-  Responsavel,
   ClienteSelection,
 } from "../models";
 import { CustomerPicker } from "../customer-picker";
@@ -14,7 +14,13 @@ import { warnBeforeUnload } from "../unsaved";
 import { HttpErrorResponse } from "@angular/common/http";
 import { TextFields } from "../text-fields";
 @Component({
-  imports: [ReactiveFormsModule, RouterLink, TextFields, CustomerPicker],
+  imports: [
+    ReactiveFormsModule,
+    RouterLink,
+    TextFields,
+    CustomerPicker,
+    PhotoPicker,
+  ],
   template: `
     <a routerLink="/visitas" class="back-link">← Voltar às visitas</a>
     <div class="page-heading">
@@ -37,8 +43,7 @@ import { TextFields } from "../text-fields";
     }
     @if (scheduled(); as item) {
       <div class="notice">
-        Visita do agendamento #{{ item.id }} · {{ item.empresa }}. O responsável
-        permanece vinculado ao planejamento.
+        Visita do agendamento #{{ item.id }} · {{ item.empresa }}.
         <a routerLink="/agenda">Consultar agenda</a>
       </div>
     }
@@ -92,54 +97,6 @@ import { TextFields } from "../text-fields";
             (selected)="chooseCustomer($event)"
           />
           <visit-text-fields [form]="form" [errors]="errors()" />
-          <div class="field">
-            <label for="responsavel"
-              >Responsável pelo acompanhamento
-              <span aria-hidden="true">*</span></label
-            >
-            @if (loadingResponsibles()) {
-              <p role="status">Carregando responsáveis…</p>
-            } @else if (responsibleError()) {
-              <div class="alert" role="alert">
-                {{ responsibleError() }}
-                <button
-                  class="text-link"
-                  type="button"
-                  (click)="loadResponsibles()"
-                >
-                  Tentar novamente
-                </button>
-              </div>
-            } @else if (!responsibles().length) {
-              <div class="notice">
-                Nenhum responsável ativo disponível. Solicite apoio ao
-                administrador.
-              </div>
-            } @else {
-              <select
-                id="responsavel"
-                [formControl]="responsible"
-                [attr.aria-invalid]="
-                  (responsible.touched && responsible.invalid) ||
-                  !!errors()['responsavel_id']
-                "
-                aria-describedby="responsavel-error"
-              >
-                <option [ngValue]="null">Selecione um responsável</option>
-                @for (r of responsibles(); track r.id) {
-                  <option [ngValue]="r.id">{{ r.nome }}</option>
-                }
-              </select>
-            }
-            @if (
-              (responsible.touched && responsible.invalid) ||
-              errors()["responsavel_id"]
-            ) {
-              <small class="field-error" id="responsavel-error">{{
-                errors()["responsavel_id"] || "Selecione um responsável ativo."
-              }}</small>
-            }
-          </div>
         </fieldset>
         <div class="form-actions">
           <a class="button secondary" routerLink="/visitas">Cancelar</a
@@ -152,64 +109,50 @@ import { TextFields } from "../text-fields";
               saving() ||
               scheduleLoading() ||
               !!scheduleError() ||
-              registeredVisit() !== null ||
-              locating() ||
-              loadingResponsibles() ||
-              !!responsibleError() ||
-              !responsibles().length
+              registeredVisit() !== null
             "
           >
-            {{ saving() ? "Registrando…" : "Registrar check-in" }}
+            {{
+              uploadingPhoto()
+                ? "Enviando foto…"
+                : saving()
+                  ? "Registrando…"
+                  : "Registrar check-in"
+            }}
             <span aria-hidden="true">↗</span>
           </button>
         </div>
       </section>
-      <aside class="panel gps-panel">
-        <span class="gps-symbol" aria-hidden="true">◎</span>
-        <h2>Localização da visita</h2>
+      <aside class="panel place-panel">
+        <span class="place-symbol" aria-hidden="true">⌖</span>
+        <h2>Local e foto</h2>
         <p class="muted">
-          Capture sua posição atual para registrar o check-in.
+          Informe onde a visita acontece. A foto é opcional.
         </p>
-        @if (gpsError()) {
-          <div class="alert" role="alert">{{ gpsError() }}</div>
-        }
-        @if (coordinates(); as gps) {
-          <div class="gps-success" role="status">
-            <span class="live-dot"></span> Localização capturada
+        <fieldset [disabled]="saving()">
+          <div class="field">
+            <label for="local"
+              >Local da visita <span aria-hidden="true">*</span></label
+            >
+            <input
+              id="local"
+              [formControl]="local"
+              autocomplete="street-address"
+              placeholder="Endereço ou referência do local"
+              [attr.aria-invalid]="localInvalid()"
+              aria-describedby="local-error"
+            />
+            @if (localInvalid()) {
+              <small class="field-error" id="local-error">{{
+                errors()["local"] || "Informe o local (até 255 caracteres)."
+              }}</small>
+            }
           </div>
-          <dl class="gps-data">
-            <dt>Capturada em</dt>
-            <dd>{{ capturedAt() }}</dd>
-            <dt>Validade</dt>
-            <dd>{{ expired() ? "Expirada: capture novamente" : "Atual" }}</dd>
-            <dt>Latitude</dt>
-            <dd>{{ gps.latitude.toFixed(7) }}</dd>
-            <dt>Longitude</dt>
-            <dd>{{ gps.longitude.toFixed(7) }}</dd>
-            <dt>Precisão</dt>
-            <dd>{{ gps.precisao_gps.toFixed(1) }} m</dd>
-          </dl>
-        } @else {
-          <div class="gps-placeholder">Aguardando localização</div>
-        }
-        <button
-          type="button"
-          class="button secondary full"
-          [disabled]="locating() || saving()"
-          (click)="capture()"
-        >
-          {{
-            locating()
-              ? "Buscando localização…"
-              : coordinates()
-                ? "Atualizar localização"
-                : "Capturar localização"
-          }}</button
-        ><small class="gps-note"
-          >Permita o acesso à localização no navegador. A precisão pode variar
-          conforme o dispositivo e o ambiente. A captura é válida por no máximo
-          2 minutos e não comprova presença física.</small
-        >
+        </fieldset>
+        <photo-picker
+          [disabled]="saving() || registeredVisit() !== null"
+          (changed)="photo.set($event)"
+        />
       </aside>
     </form>
   `,
@@ -233,7 +176,17 @@ export class CreatePage {
     value.contato_id
       ? this.form.controls.contato.disable()
       : this.form.controls.contato.enable();
+    this.suggestLocal(value.endereco);
     this.form.markAsDirty();
+  }
+  // Sugere o endereço do cliente sem sobrescrever o que o funcionário digitou.
+  private suggestLocal(address: string | undefined): void {
+    if (!address) return;
+    const current = this.local.value.trim();
+    if (current && current !== this.suggestedLocal) return;
+    const suggestion = Array.from(address).slice(0, 255).join("").trim();
+    this.local.setValue(suggestion);
+    this.suggestedLocal = suggestion;
   }
   private customerLinks(): { cliente_id?: number; contato_id?: number } {
     const c = this.selection();
@@ -243,32 +196,25 @@ export class CreatePage {
     };
   }
   readonly form = textForm();
-  readonly responsible = new FormControl<number | null>(
-    null,
-    Validators.required,
-  );
-  readonly responsibles = signal<Responsavel[]>([]);
-  readonly loadingResponsibles = signal(true);
-  readonly responsibleError = signal("");
-  readonly coordinates = signal<Coordinates | null>(null);
-  readonly locating = signal(false);
-  readonly gpsError = signal("");
+  readonly local = new FormControl("", {
+    nonNullable: true,
+    validators: [nonBlank, maxCharacters(255)],
+  });
+  private suggestedLocal = "";
+  readonly photo = signal<Blob | null>(null);
+  readonly uploadingPhoto = signal(false);
   readonly saving = signal(false);
   readonly error = signal("");
   readonly errors = signal<Record<string, string>>({});
   readonly pending = signal<{ key: string; payload: NewVisit } | null>(null);
   readonly registeredVisit = signal<number | null>(null);
-  readonly clock = signal(Date.now());
   private saved = false;
   private destroyed = false;
   constructor() {
     warnBeforeUnload(this);
-    const timer = window.setInterval(() => this.clock.set(Date.now()), 1000);
     inject(DestroyRef).onDestroy(() => {
       this.destroyed = true;
-      window.clearInterval(timer);
     });
-    void this.loadResponsibles();
     const id = this.route?.snapshot?.queryParamMap?.get("agendamento_id");
     if (id !== null && id !== undefined) {
       void this.loadSchedule(id);
@@ -305,8 +251,6 @@ export class CreatePage {
         });
         this.form.markAsPristine();
       }
-      this.responsible.setValue(Number(item.responsavel_id));
-      this.responsible.disable();
     } catch (e) {
       if (!this.destroyed)
         this.scheduleError.set(
@@ -320,20 +264,16 @@ export class CreatePage {
     return (
       !this.saved &&
       (this.form.dirty ||
-        this.responsible.dirty ||
-        !!this.coordinates() ||
+        this.local.dirty ||
+        !!this.photo() ||
         !!this.pending() ||
         this.saving())
     );
   }
-  expired(): boolean {
-    return !freshCoordinates(this.coordinates(), this.clock());
-  }
-  capturedAt(): string {
-    const coords = this.coordinates();
-    return coords
-      ? new Date(coords.gps_capturado_em).toLocaleTimeString("pt-BR")
-      : "";
+  localInvalid(): boolean {
+    return (
+      !!this.errors()["local"] || (this.local.touched && this.local.invalid)
+    );
   }
   extraErrors(): string[] {
     return Object.entries(this.errors())
@@ -344,55 +284,10 @@ export class CreatePage {
             "empresa",
             "assunto",
             "descricao",
-            "responsavel_id",
+            "local",
           ].includes(key),
       )
       .map(([key, value]) => value);
-  }
-  async loadResponsibles(): Promise<void> {
-    this.loadingResponsibles.set(true);
-    this.responsibleError.set("");
-    try {
-      const items = await this.api.responsibles();
-      if (!this.destroyed) {
-        this.responsibles.set(items);
-      }
-    } catch (error) {
-      if (!this.destroyed) {
-        this.responsibleError.set(errorMessage(error));
-      }
-    } finally {
-      if (!this.destroyed) {
-        this.loadingResponsibles.set(false);
-      }
-    }
-  }
-  async capture(): Promise<void> {
-    if (this.locating() || this.saving()) {
-      return;
-    }
-    this.locating.set(true);
-    this.gpsError.set("");
-    this.coordinates.set(null);
-    try {
-      const coords = await locate();
-      if (!this.destroyed) {
-        this.coordinates.set(coords);
-        this.clock.set(Date.now());
-      }
-    } catch (error) {
-      if (!this.destroyed) {
-        this.gpsError.set(
-          error instanceof Error
-            ? error.message
-            : "Falha ao capturar localização.",
-        );
-      }
-    } finally {
-      if (!this.destroyed) {
-        this.locating.set(false);
-      }
-    }
   }
   handleSubmit(event: Event): void {
     event.preventDefault();
@@ -408,36 +303,33 @@ export class CreatePage {
       this.handleSubmit(event);
     }
   }
+  private payload(): NewVisit {
+    return {
+      ...this.customerLinks(),
+      ...(this.scheduled()
+        ? { agendamento_id: Number(this.scheduled()!.id) }
+        : {}),
+      ...this.form.getRawValue(),
+      local: this.local.value.trim(),
+    };
+  }
   async submit(): Promise<void> {
     if (
       this.saved ||
       this.saving() ||
-      this.locating() ||
-      this.loadingResponsibles() ||
-      this.responsibleError() ||
       this.scheduleLoading() ||
       this.scheduleError()
     ) {
       return;
     }
     this.form.markAllAsTouched();
-    this.responsible.markAsTouched();
+    this.local.markAsTouched();
     this.error.set("");
     this.errors.set({});
-    const coords = this.coordinates();
-    const responsible = this.responsible.value;
     if (this.pending()) {
-      const candidate = {
-        ...this.customerLinks(),
-        ...(this.scheduled()
-          ? { agendamento_id: Number(this.scheduled()!.id) }
-          : {}),
-        ...this.form.getRawValue(),
-        responsavel_id: Number(responsible),
-        ...coords,
-      };
       if (
-        JSON.stringify(candidate) !== JSON.stringify(this.pending()!.payload)
+        JSON.stringify(this.payload()) !==
+        JSON.stringify(this.pending()!.payload)
       ) {
         this.error.set(
           "O formulário mudou após uma tentativa incerta. Recupere a tentativa original antes de iniciar outra visita.",
@@ -447,36 +339,11 @@ export class CreatePage {
       await this.recover();
       return;
     }
-    if (!freshCoordinates(coords)) {
-      this.gpsError.set(
-        coords
-          ? "A localização expirou. Capture novamente antes de enviar."
-          : "Capture a localização antes de registrar o check-in.",
-      );
+    if (this.form.invalid || this.local.invalid) {
+      this.error.set("Revise os campos obrigatórios, incluindo o local.");
       return;
     }
-    if (
-      this.form.invalid ||
-      this.responsible.invalid ||
-      !coords ||
-      !responsible ||
-      !this.responsibles().some((r) => r.id === responsible)
-    ) {
-      this.error.set("Revise os campos obrigatórios e a localização.");
-      return;
-    }
-    const attempt = {
-      key: crypto.randomUUID(),
-      payload: {
-        ...this.customerLinks(),
-        ...(this.scheduled()
-          ? { agendamento_id: Number(this.scheduled()!.id) }
-          : {}),
-        ...this.form.getRawValue(),
-        responsavel_id: Number(responsible),
-        ...coords,
-      },
-    };
+    const attempt = { key: crypto.randomUUID(), payload: this.payload() };
     this.pending.set(attempt);
     await this.send(attempt);
   }
@@ -485,7 +352,7 @@ export class CreatePage {
     if (!attempt || this.saving()) {
       return;
     }
-    // Reenvia o snapshot. O servidor devolve a resposta salva ou rejeita GPS vencido antes de criar.
+    // Reenvia o snapshot com a mesma chave; o servidor devolve a resposta salva.
     await this.send(attempt);
   }
   private async send(attempt: {
@@ -495,22 +362,9 @@ export class CreatePage {
     this.saving.set(true);
     this.error.set("");
     this.errors.set({});
+    let visit;
     try {
-      const visit = await this.api.create(attempt.payload, attempt.key);
-      if (this.destroyed) {
-        return;
-      }
-      this.pending.set(null);
-      this.saved = true;
-      this.registeredVisit.set(Number(visit.id));
-      this.form.markAsPristine();
-      this.responsible.markAsPristine();
-      await this.router.navigate(["/visitas", visit.id], {
-        state: {
-          createdVisitId: Number(visit.id),
-          message: "Check-in registrado com sucesso",
-        },
-      });
+      visit = await this.api.create(attempt.payload, attempt.key);
     } catch (error) {
       if (this.destroyed) {
         return;
@@ -526,6 +380,37 @@ export class CreatePage {
       ) {
         this.pending.set(null);
       }
+      this.saving.set(false);
+      return;
+    }
+    if (this.destroyed) {
+      return;
+    }
+    const id = Number(visit.id);
+    this.pending.set(null);
+    this.saved = true;
+    this.registeredVisit.set(id);
+    this.form.markAsPristine();
+    this.local.markAsPristine();
+    // A visita já existe: falha na foto não desfaz nem repete o check-in.
+    let message: string = CHECKIN_MESSAGES.success;
+    const photo = this.photo();
+    if (photo) {
+      this.uploadingPhoto.set(true);
+      try {
+        await this.api.uploadVisitPhoto(id, photo);
+      } catch {
+        message = CHECKIN_MESSAGES.photoFailed;
+      }
+      if (this.destroyed) {
+        return;
+      }
+      this.uploadingPhoto.set(false);
+    }
+    try {
+      await this.router.navigate(["/visitas", id], {
+        state: { createdVisitId: id, message },
+      });
     } finally {
       if (!this.destroyed) {
         this.saving.set(false);

@@ -1,3 +1,9 @@
+# Local digitado e foto — 12/11/2026
+
+- 86 testes aprovados em 7 arquivos e build de produção Angular concluído. Testes de GPS (captura, permissão, validade de 2 minutos) foram substituídos.
+- Cobertos: payload com `local` e sem latitude/longitude/precisao_gps/gps_capturado_em; local obrigatório, sem espaços vazios e até 255 pontos de código; erro de campo `local` da API junto ao campo; sugestão do endereço do cliente sem sobrescrever texto digitado; compressão/fallback/limite de 5 MB; upload da foto só após criar e só quando há foto; falha da foto navega para a visita com aviso sem recriar; detalhe carrega a foto como blob autenticado e revoga o object URL; **Adicionar foto** só para o funcionário dono, em andamento e sem foto; visita antiga mostra coordenadas sem "null".
+- jsdom não tem canvas: nos testes a compressão cai no fallback do arquivo original. Compressão real e câmera do celular não foram testadas manualmente.
+
 # Clientes e retornos — 16/10/2026
 
 - 76 testes aprovados em 7 arquivos: 53 da base/agenda e 23 novos de clientes, contatos, CNPJ, calendário, seleção com IDs, conclusão com resultado, compatibilidade com concluídas antigas, filtros/volta, permissões da interface, retornos, confirmações e erros HTTP.

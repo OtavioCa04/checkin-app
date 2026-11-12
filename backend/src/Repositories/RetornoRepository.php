@@ -6,7 +6,7 @@ use PDO;
 final class RetornoRepository
 {
     public function __construct(private PDO $db){}
-    private const SELECT='SELECT t.*,v.usuario_id,v.responsavel_id,v.cliente_id,v.contato_id,v.empresa,v.contato,v.assunto,v.proximo_passo,v.resumo_resultado,v.cadastro_snapshot,u.nome AS funcionario_nome,r.nome AS responsavel_nome,e.nome AS encerrado_por_nome,a.id AS agendamento_id FROM retornos t JOIN visitas v ON v.id=t.visita_id JOIN usuarios u ON u.id=v.usuario_id JOIN usuarios r ON r.id=v.responsavel_id LEFT JOIN usuarios e ON e.id=t.encerrado_por LEFT JOIN agendamentos a ON a.retorno_id=t.id';
+    private const SELECT='SELECT t.*,v.usuario_id,v.responsavel_id,v.cliente_id,v.contato_id,v.empresa,v.contato,v.assunto,v.proximo_passo,v.resumo_resultado,v.cadastro_snapshot,u.nome AS funcionario_nome,r.nome AS responsavel_nome,e.nome AS encerrado_por_nome,a.id AS agendamento_id FROM retornos t JOIN visitas v ON v.id=t.visita_id JOIN usuarios u ON u.id=v.usuario_id LEFT JOIN usuarios r ON r.id=v.responsavel_id LEFT JOIN usuarios e ON e.id=t.encerrado_por LEFT JOIN agendamentos a ON a.retorno_id=t.id';
     public function create(int $visit,string $date): int{$q=$this->db->prepare('INSERT INTO retornos (visita_id,data_prevista) VALUES (?,?)');$q->execute([$visit,$date]);return (int)$this->db->lastInsertId();}
     public function find(int $id,bool $lock=false):?array
     {
@@ -15,7 +15,7 @@ final class RetornoRepository
     }
     public function list(?string $column,int $user,int $limit,int $offset,array $filters):array
     {
-        if(!in_array($column,[null,'usuario_id','responsavel_id'],true)){throw new \InvalidArgumentException();}$where=[];$values=[];
+        if(!in_array($column,[null,'usuario_id'],true)){throw new \InvalidArgumentException();}$where=[];$values=[];
         if($column){$where[]="v.{$column}=?";$values[]=$user;}
         foreach(['inicio'=>'t.data_prevista>=?','fim'=>'t.data_prevista<?','funcionario_id'=>'v.usuario_id=?'] as $key=>$clause){if(isset($filters[$key])){$where[]=$clause;$values[]=$filters[$key];}}
         if(isset($filters['status'])){

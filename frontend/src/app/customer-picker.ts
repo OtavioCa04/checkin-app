@@ -10,6 +10,7 @@ import {
 import { FormControl, ReactiveFormsModule } from "@angular/forms";
 import { Api, errorMessage } from "./api";
 import { Cliente, ClienteSelection, Contato } from "./models";
+import { clientAddress } from "./customer-shared";
 
 @Component({
   selector: "customer-picker",
@@ -216,9 +217,11 @@ export class CustomerPicker {
   }
   selectClient(client: Cliente): void {
     if (this.disabled()) return;
+    const endereco = clientAddress(client, ", ");
     this.choice.set({
       cliente_id: Number(client.id),
       empresa: client.nome_empresa,
+      ...(endereco ? { endereco } : {}),
     });
     this.contact.setValue(null);
     this.contacts.set([]);
@@ -258,6 +261,7 @@ export class CustomerPicker {
     const value = {
       cliente_id: current.cliente_id,
       empresa: current.empresa,
+      ...(current.endereco ? { endereco: current.endereco } : {}),
       ...(contact
         ? { contato_id: Number(contact.id), contato: contact.nome }
         : {}),

@@ -6,7 +6,7 @@ use PDO;
 final class AgendamentoRepository
 {
     public function __construct(private PDO $db) {}
-    private const SELECT = 'SELECT a.*, u.nome AS funcionario_nome, r.nome AS responsavel_nome, v.id AS visita_id FROM agendamentos a JOIN usuarios u ON u.id=a.usuario_id JOIN usuarios r ON r.id=a.responsavel_id LEFT JOIN visitas v ON v.agendamento_id=a.id';
+    private const SELECT = 'SELECT a.*, u.nome AS funcionario_nome, r.nome AS responsavel_nome, v.id AS visita_id FROM agendamentos a JOIN usuarios u ON u.id=a.usuario_id LEFT JOIN usuarios r ON r.id=a.responsavel_id LEFT JOIN visitas v ON v.agendamento_id=a.id';
     public function find(int $id, bool $lock = false): ?array
     {
         if ($lock) {
@@ -22,7 +22,7 @@ final class AgendamentoRepository
     }
     public function list(?string $column, int $userId, int $limit, int $offset, array $filters): array
     {
-        if (!in_array($column, [null, 'usuario_id', 'responsavel_id'], true)) { throw new \InvalidArgumentException(); }
+        if (!in_array($column, [null, 'usuario_id'], true)) { throw new \InvalidArgumentException(); }
         $where = []; $values = [];
         if ($column) { $where[] = "a.{$column}=?"; $values[] = $userId; }
         foreach (['inicio' => 'a.data_hora_prevista>=?', 'fim' => 'a.data_hora_prevista<?', 'funcionario_id' => 'a.usuario_id=?'] as $key => $clause) {
@@ -37,17 +37,13 @@ final class AgendamentoRepository
     }
     public function create(array $data): int
     {
-        $keys = ['usuario_id', 'responsavel_id', 'criado_por', 'empresa', 'contato', 'assunto', 'observacoes', 'data_hora_prevista', 'cliente_id', 'contato_id', 'cadastro_snapshot'];
+        $keys = ['usuario_id', 'criado_por', 'empresa', 'contato', 'assunto', 'observacoes', 'data_hora_prevista', 'cliente_id', 'contato_id', 'cadastro_snapshot'];
         $q = $this->db->prepare('INSERT INTO agendamentos (' . implode(',', $keys) . ') VALUES ('.implode(',',array_fill(0,count($keys),'?')).')');
         $q->execute(array_map(static fn ($key) => $data[$key] ?? null, $keys)); return (int) $this->db->lastInsertId();
     }
     public function change(int $id, string $status, string $date): void
     {
         $q = $this->db->prepare('UPDATE agendamentos SET status=?, data_hora_prevista=? WHERE id=?'); $q->execute([$status, $date, $id]);
-    }
-    public function changeResponsible(int $id, int $responsibleId): void
-    {
-        $q = $this->db->prepare('UPDATE agendamentos SET responsavel_id=? WHERE id=?'); $q->execute([$responsibleId, $id]);
     }
     public function event(int $id, int $author, string $action, string $reason, ?string $old, ?string $new): void
     {

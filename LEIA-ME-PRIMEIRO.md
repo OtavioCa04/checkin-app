@@ -85,7 +85,7 @@ Esta é a **senha de conexão com o banco**, não a senha para entrar no sistema
 
 Com o MySQL ligado, abra **2-PREPARAR-BANCO.cmd** e pressione uma tecla quando solicitado.
 
-Ele prepara somente as tabelas pendentes no banco configurado. Na primeira instalação, devem aparecer as migrações `001`, `002`, `003`, `004` e `005`. Aguarde **BANCO PREPARADO**. Se não aparecer nome de migração, mas o passo terminar com sucesso, elas já estavam aplicadas.
+Ele prepara somente as tabelas pendentes no banco configurado. Na primeira instalação, devem aparecer as migrações `001`, `002`, `003`, `004`, `005`, `006` e `007`. Aguarde **BANCO PREPARADO**. Se não aparecer nome de migração, mas o passo terminar com sucesso, elas já estavam aplicadas.
 
 Se houver erro, não apague o banco nem repita importações de arquivos SQL aleatórios. Confira o `.env` e a mensagem da janela. Se uma migração parar no meio, peça ajuda antes de repetir.
 
@@ -99,7 +99,7 @@ Abra **3-CRIAR-ADMIN.cmd**. Ele perguntará:
 
 Aguarde **ADMINISTRADOR CRIADO** e guarde o e-mail e a senha. Não execute novamente para redefinir senha: esse arquivo cria contas novas e não muda contas existentes. E-mail já cadastrado causa erro.
 
-Depois de entrar como administrador, use **Usuários** no menu para criar funcionários e responsáveis com suas próprias senhas iniciais. O funcionário só poderá escolher um responsável se existir uma conta ativa com esse perfil. Clientes criados pelo administrador precisam receber o vínculo com os funcionários que vão usá-los.
+Depois de entrar como administrador, use **Usuários** no menu para criar funcionários e outros administradores com suas próprias senhas iniciais. Clientes criados pelo administrador precisam receber o vínculo com os funcionários que vão usá-los.
 
 ## 8. Abra o sistema
 
@@ -129,12 +129,10 @@ Feche as janelas do backend e do frontend, ou pressione Ctrl+C em cada uma. Se p
 ## Uso básico
 
 - **Administrador:** cria usuários, gerencia clientes e contatos, atribui acesso e acompanha todos os registros.
-- **Funcionário:** cadastra clientes do seu trabalho, agenda e faz check-in com GPS; ao concluir, registra resultado e pode prever um retorno.
-- **Responsável:** consulta visitas, agenda, clientes/contatos e retornos atribuídos a ele.
+- **Funcionário:** cadastra clientes do seu trabalho, agenda e faz check-in informando o local da visita e, se quiser, uma foto; ao concluir, registra resultado e pode prever um retorno.
 - **Visitas concluídas:** ficam disponíveis para consulta e não podem ser reabertas ou editadas.
 - **Retornos:** gerar um agendamento não marca automaticamente o retorno como realizado.
 - **Sessão:** recarregar a página exige fazer login novamente. Isso é esperado; o token só fica em memória.
-- **GPS:** permita a localização no navegador quando solicitado. A precisão depende do aparelho; há computadores sem localização precisa. A aplicação precisa permanecer no endereço local para esse teste.
 
 ## Problemas comuns
 
@@ -153,7 +151,6 @@ Feche as janelas do backend e do frontend, ou pressione Ctrl+C em cada uma. Se p
 | Erro de CORS / origem não permitida | Inicie pelo atalho `4-INICIAR-BACKEND.cmd` e use o endereço indicado. Evite outro hostname/porta. |
 | 401 / e-mail ou senha inválidos | Use o e-mail e a senha criados por você. A senha do banco não funciona na tela de login. Confira também se o usuário está ativo. |
 | 429 / muitas tentativas | Aguarde o tempo indicado na tela antes de tentar de novo. |
-| Localização negada | Nas permissões do navegador para esse endereço, permita a localização e faça nova captura. |
 
 Se precisar de ajuda, envie a mensagem do erro e diga em qual passo parou. Não envie sua senha, seu `.env` nem um backup do banco.
 
@@ -161,7 +158,7 @@ Se precisar de ajuda, envie a mensagem do erro e diga em qual passo parou. Não 
 
 Vêm backend, frontend, migrações, testes, exemplos de configuração, documentação e atalhos de execução. Bibliotecas serão baixadas pelo passo 1. Não vêm PHP, MySQL/MariaDB, Composer, Node.js, Git, banco preenchido, contas prontas, `.env` real, logs, uploads ou dependências já instaladas.
 
-O pacote é para desenvolvimento e teste local. Para disponibilizar pela internet ou para uma equipe em rede, é necessária uma configuração de hospedagem própria. Para transferir dados já cadastrados, peça um procedimento separado de backup e restauração; copiar só esta pasta não copia o banco.
+O pacote é para desenvolvimento e teste local. Para disponibilizar pela internet ou para uma equipe em rede, siga o guia [DEPLOY.md](DEPLOY.md). Para transferir dados já cadastrados, peça um procedimento separado de backup e restauração; copiar só esta pasta não copia o banco.
 
 ## Documentação técnica opcional
 

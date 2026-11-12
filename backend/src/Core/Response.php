@@ -14,6 +14,17 @@ final class Response
         self::send(['success' => false, 'message' => $message, 'errors' => (object) $errors], $status);
     }
 
+    public static function file(string $path, string $type): void
+    {
+        http_response_code(200);
+        header('Content-Type: ' . $type);
+        header('Content-Length: ' . filesize($path));
+        header('Content-Disposition: inline');
+        header('Cache-Control: private, no-store');
+        header('X-Content-Type-Options: nosniff');
+        readfile($path);
+    }
+
     private static function send(array $body, int $status): void
     {
         http_response_code($status);

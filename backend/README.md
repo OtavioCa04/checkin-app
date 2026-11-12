@@ -69,7 +69,6 @@ Migrações exigem CREATE, INDEX e REFERENCES; em produção use conta separada 
 | LOGIN_IP_LIMIT | 30 tentativas por origem na janela |
 | LOGIN_ACCOUNT_LIMIT | 10 tentativas por identificador na janela |
 | TRUSTED_PROXIES | Vazio; IPs exatos de proxies confiáveis separados por vírgula |
-| GPS_MAX_AGE_SECONDS | 120; limitado pelo código a 1–120 segundos |
 
 Variáveis novas têm defaults: adicione-as manualmente se precisar, sem substituir o .env. CORS aceita Authorization, Content-Type e Idempotency-Key e expõe Retry-After. Não usa cookies/Access-Control-Allow-Credentials.
 
@@ -93,11 +92,12 @@ Prefixo **/api/v1** em todos os caminhos:
 | POST | /auth/login | Público, sujeito a limite |
 | GET | /auth/me | Autenticado |
 | POST | /auth/logout | Autenticado |
-| GET | /responsaveis | Funcionário; somente id/nome dos responsáveis ativos |
 | POST | /visitas | Funcionário; Idempotency-Key obrigatório |
-| GET | /visitas | Funcionário: próprias; responsável: atribuídas; admin: todas |
+| GET | /visitas | Funcionário: próprias; admin: todas |
 | GET | /visitas/{id} | Mesmo escopo de leitura |
 | PATCH | /visitas/{id} | Funcionário proprietário ou admin; em andamento |
+| POST | /visitas/{id}/foto | Funcionário proprietário; em andamento; uma foto (multipart, campo foto) |
+| GET | /visitas/{id}/foto | Mesmo escopo de leitura da visita; devolve a imagem |
 | GET | /usuarios | Admin, paginado |
 | POST | /usuarios | Admin |
 | PATCH | /usuarios/{id} | Admin |
@@ -106,23 +106,25 @@ Sem DELETE. Responsável permanece somente leitura; admin não cria check-ins. V
 
 Sucesso: `{success:true,message,data}`. Erro: `{success:false,message,errors:{campo:"..."}}`. Listas: data.items/limit/offset. Limit 1–100 (default 20); offset 0–1000000; sem total. Códigos: 200/201, 400/401/403/404/405/409/413/415/429/500. Erros internos, SQL e credenciais não são expostos.
 
-## Check-in idempotente e GPS
+## Check-in idempotente, local e foto
 
 POST /visitas exige Content-Type application/json, Authorization Bearer e Idempotency-Key com 16–80 caracteres ASCII alfanuméricos/hífen/sublinhado (UUID serve). Exemplo de corpo, com dados fictícios:
 
 ```json
-{"contato":"Contato Teste","empresa":"Empresa Teste","assunto":"Apresentação","descricao":"Visita comercial.","responsavel_id":1,"latitude":-23.55,"longitude":-46.63,"precisao_gps":12.5,"gps_capturado_em":1791980000000}
+{"contato":"Contato Teste","empresa":"Empresa Teste","assunto":"Apresentação","descricao":"Visita comercial.","local":"Av. Paulista, 1000 - São Paulo"}
 ```
 
-Substitua gps_capturado_em pelo timestamp **atual** retornado pelo navegador, em milissegundos Unix, e responsavel_id por ID real ativo/perfil responsável. IDs/GPS são números JSON. Latitude ±90, longitude ±180, precisão 0–999999.99 metros. Textos obrigatórios: contato 150, empresa 180, assunto 200, descrição 10000 **pontos de código Unicode** (mb_strlen UTF-8, incluindo emojis). Senhas continuam medidas em bytes.
+`local` é o local da visita digitado pelo funcionário (endereço ou referência), obrigatório, até 255 caracteres. Não há mais GPS: latitude, longitude, precisao_gps e gps_capturado_em são recusados com 400, e visitas antigas mantêm as coordenadas só como histórico. IDs são números JSON. Textos obrigatórios: contato 150, empresa 180, assunto 200, descrição 10000 **pontos de código Unicode** (mb_strlen UTF-8, incluindo emojis). Senhas continuam medidas em bytes.
 
 A chave única é (funcionário autenticado, chave). A transação bloqueia/reserva a chave, compara hash canônico, cria visita e salva snapshot da resposta no mesmo commit. Repetição simultânea espera commit/rollback. Mesma chave/dados retorna o snapshot original com 201, inclusive após edição posterior; dados diferentes retornam 409. Ordem de campos, números equivalentes e trim de textos não mudam o hash. Falha antes do commit desfaz visita e reserva.
 
-Novas criações recusam GPS com idade maior que o limite, com tolerância de 5 segundos de relógio futuro. Repetição recupera primeiro uma resposta já salva, mesmo com GPS agora vencido; se não houve commit e o GPS venceu, retorna 400 sem criar. Reenvie exatamente chave e payload da tentativa incerta, sem gerar outra chave silenciosamente.
+Reenvie exatamente chave e payload da tentativa incerta, sem gerar outra chave silenciosamente.
 
-Check-in/checkout oficiais continuam definidos pelo servidor em UTC; usuario_id vem da identidade, nunca do cliente. GPS/timestamp do dispositivo não comprovam presença física. O timestamp GPS não é o horário oficial.
+Foto opcional: depois do check-in, `POST /visitas/{id}/foto` com multipart/form-data e campo `foto` (JPG, PNG ou WebP, até 5 MB, tipo conferido pelo conteúdo). Só o funcionário da visita envia, só em andamento e só uma vez (409 depois). O arquivo fica em `storage/uploads/visitas`, fora da pasta pública, com nome aleatório que a API nunca devolve: a visita informa apenas `tem_foto`. `GET /visitas/{id}/foto` exige o token e o mesmo escopo de leitura da visita. Em hospedagem, confira `upload_max_filesize` e `post_max_size` do PHP (5 MB ou mais) e inclua essa pasta no backup.
 
-PATCH aceita campos textuais/status e resultado/resumo_resultado/proximo_passo/data_retorno junto da conclusão. Empresa/contato vinculados ao cadastro preservam o retrato original. Concluir exige resultado/resumo, define checkout e cria retorno quando há data, tudo na mesma transação. Concluídas são imutáveis (409). Não edita GPS, identidade, responsável ou horários. FOR UPDATE bloqueia o registro da visita.
+Check-in/checkout oficiais continuam definidos pelo servidor em UTC; usuario_id vem da identidade, nunca do cliente. O local digitado e a foto são informados pelo funcionário e não comprovam presença física.
+
+PATCH aceita campos textuais/status e resultado/resumo_resultado/proximo_passo/data_retorno junto da conclusão. Empresa/contato vinculados ao cadastro preservam o retrato original. Concluir exige resultado/resumo, define checkout e cria retorno quando há data, tudo na mesma transação. Concluídas são imutáveis (409). Não edita local, foto, identidade ou horários. FOR UPDATE bloqueia o registro da visita.
 
 ## Filtros e nomes
 
@@ -142,7 +144,7 @@ POST /usuarios: nome (150), email (válido, até 190), perfil, ativo booleano (d
 
 user_management_lock serializa operações de gestão, revalida o administrador e impede que o último admin ativo seja desativado ou perca perfil, inclusive sob concorrência. Pode editar a própria conta dentro dessa regra. Inativação invalida o acesso de tokens; alteração de perfil muda a autorização das próximas requisições.
 
-Visitas existentes **não são reatribuídas, apagadas ou alteradas**. IDs mantêm seus vínculos; o perfil atual controla o escopo: funcionário por usuario_id, responsável por responsavel_id, admin todas. Um ex-funcionário que vira responsável perde acesso como proprietário, salvo visitas atribuídas a ele; elas continuam disponíveis aos responsáveis vinculados/admins. Ex-responsáveis continuam vinculados às visitas, mas seu perfil atual controla acesso. O seletor para novas visitas inclui apenas responsáveis ativos. Não há hierarquia de equipes.
+Perfis: **admin** e **funcionário**. Visitas existentes **não são reatribuídas, apagadas ou alteradas**; o perfil atual controla o escopo: funcionário por usuario_id, admin todas. Um ex-funcionário que vira admin passa a ver tudo. Desde a migração 006 não existe responsável por visita: novos registros têm responsavel_id nulo e os antigos mantêm o valor e o nome (responsavel_nome) só como histórico. Não há hierarquia de equipes.
 
 O script de terminal foi preservado:
 
