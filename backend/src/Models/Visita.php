@@ -32,9 +32,17 @@ final class Visita
         return $data;
     }
 
+    // Regra central de leitura de visitas, agendamentos e retornos:
+    // nunca atravessa empresas, admin vê tudo da própria empresa e os demais só o que é deles.
     public static function canRead(array $user, array $visit): bool
     {
-        return $user['perfil'] === 'admin'
-            || ($user['perfil'] === 'funcionario' && (int) $visit['usuario_id'] === (int) $user['id']);
+        if (!self::sameCompany($user, $visit)) { return false; }
+        return $user['perfil'] === 'admin' || (int) $visit['usuario_id'] === (int) $user['id'];
     }
+    public static function sameCompany(array $user, array $row): bool
+    {
+        return isset($user['empresa_id'], $row['empresa_id']) && (int) $user['empresa_id'] === (int) $row['empresa_id'];
+    }
+    /** Admin também vai a campo: faz check-in e recebe agendamentos. */
+    public const PERFIS_CAMPO = ['funcionario', 'admin'];
 }

@@ -1427,21 +1427,35 @@ fieldset {
   }
 }
 
-/* Setores: filtro da equipe e cadastro rápido */
+/* Setores: filtro da equipe e cadastro rápido, com o mesmo recuo do cabeçalho do quadro */
 .sector-filter {
-  max-width: 260px;
-  margin-bottom: 16px;
+  max-width: 300px;
+  margin: 0;
+  padding: 18px 26px;
 }
 .sector-form {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
   gap: 12px;
-  margin-bottom: 16px;
+  padding: 20px 26px;
+  border-bottom: 1px solid var(--line);
 }
 .sector-form .field {
   flex: 1 1 240px;
   margin: 0;
+}
+.sector-form .button {
+  min-height: 46px;
+}
+.panel > .notice {
+  margin: 18px 26px 0;
+}
+.sector-empty {
+  padding: 32px 26px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 13px;
 }
 td .text-link + .text-link {
   margin-left: 12px;

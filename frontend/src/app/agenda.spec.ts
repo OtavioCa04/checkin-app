@@ -144,9 +144,16 @@ describe("agenda integrada à API e aos formulários", () => {
   });
   it("administrador gerencia qualquer agendamento, mas não inicia visita de outro", async () => {
     const fixture = await page("admin");
-    expect(fixture.componentInstance.canManage(schedule)).toBe(true);
-    expect(fixture.componentInstance.canStart(schedule)).toBe(false);
-    expect(fixture.nativeElement.textContent).not.toContain("Iniciar visita");
+    const ofOther = { ...schedule, usuario_id: 5 };
+    expect(fixture.componentInstance.canManage(ofOther)).toBe(true);
+    expect(fixture.componentInstance.canStart(ofOther)).toBe(false);
+  });
+  it("administrador agendado para si mesmo também inicia a visita", async () => {
+    const fixture = await page("admin");
+    expect(fixture.componentInstance.canStart(schedule)).toBe(true);
+    expect(
+      fixture.componentInstance.personLabel({ id: 3, nome: "Ana", perfil: "admin" }),
+    ).toBe("Ana (administrador)");
   });
   it("envio do formulário da agenda cancela a submissão nativa e valida sem sair da tela", async () => {
     const fixture = await page();

@@ -18,7 +18,7 @@ final class ClienteService
     public function list(array $user,int $limit,int $offset,array $query): array
     {
         if(array_diff(array_keys($query),['limit','offset','q','ativo'])){throw new HttpException(400,'Filtro inválido.');}$search=$query['q']??'';if(!is_string($search)||mb_strlen($search,'UTF-8')>180){throw new HttpException(400,'Busca inválida.');}
-        return array_map(fn($c)=>$this->publicClient($user,$c),$this->clients->list($this->column($user),(int)$user['id'],$limit,$offset,trim($search),self::active($query)));
+        return array_map(fn($c)=>$this->publicClient($user,$c),$this->clients->list((int)$user['empresa_id'],$this->column($user),(int)$user['id'],$limit,$offset,trim($search),self::active($query)));
     }
     private function publicClient(array $user,array $client): array
     {
@@ -26,7 +26,7 @@ final class ClienteService
     }
     public function find(array $user,int $id): array
     {
-        $client=$this->clients->find($id,$this->column($user),(int)$user['id'],$this->db->inTransaction());if(!$client){throw new HttpException(404,'Cliente não encontrado.');}$client=$this->publicClient($user,$client);if($user['perfil']==='admin'){$client['funcionarios']=$this->clients->access($id);}return $client;
+        $client=$this->clients->find((int)$user['empresa_id'],$id,$this->column($user),(int)$user['id'],$this->db->inTransaction());if(!$client){throw new HttpException(404,'Cliente não encontrado.');}$client=$this->publicClient($user,$client);if($user['perfil']==='admin'){$client['funcionarios']=$this->clients->access($id);}return $client;
     }
     private function manage(array $user,int $id): array
     {
@@ -41,7 +41,7 @@ final class ClienteService
         $this->statusPermission($user,$input,$id===null);$data=Cliente::validate($input,$id===null);$this->db->beginTransaction();
         try{
             if($id!==null){$this->clients->lock($id);$this->manage($user,$id);$this->clients->update($id,$data);}
-            else{$data['criado_por']=(int)$user['id'];$id=$this->clients->create($data);if($user['perfil']==='funcionario'){$this->clients->replaceAccess($id,[(int)$user['id']],(int)$user['id']);}}
+            else{$data['criado_por']=(int)$user['id'];$data['empresa_id']=(int)$user['empresa_id'];$id=$this->clients->create($data);if($user['perfil']==='funcionario'){$this->clients->replaceAccess($id,[(int)$user['id']],(int)$user['id']);}}
             $result=$this->find($user,$id);$this->db->commit();return $result;
         }catch(\Throwable $e){if($this->db->inTransaction()){$this->db->rollBack();}if($e instanceof \PDOException&&(int)($e->errorInfo[1]??0)===1062){throw new HttpException(409,$user['perfil']==='admin'?'CNPJ já cadastrado.':'Não foi possível salvar o cadastro. Solicite apoio ao administrador.');}throw $e;}
     }
@@ -51,7 +51,7 @@ final class ClienteService
         if(array_diff(array_keys($input),['funcionarios_ids'])||!is_array($ids)||!array_is_list($ids)||count($ids)>1000){throw new HttpException(400,'Envie funcionarios_ids como lista de IDs.');}
         foreach($ids as $v){if(!is_int($v)||$v<1||$v>4294967295){throw new HttpException(400,'Funcionário inválido.');}}
         $ids=array_values(array_unique($ids));sort($ids);$this->db->beginTransaction();
-        try{$this->clients->lock($id);$this->find($user,$id);$users=new UsuarioRepository($this->db);foreach($ids as $v){$u=$users->byId($v,true);if(!$u||!$u['ativo']||$u['perfil']!=='funcionario'){throw new HttpException(400,'Vincule somente funcionários ativos.');}}$this->clients->replaceAccess($id,$ids,(int)$user['id']);$result=$this->find($user,$id);$this->db->commit();return $result;}
+        try{$this->clients->lock($id);$this->find($user,$id);$users=new UsuarioRepository($this->db);foreach($ids as $v){$u=$users->inCompany((int)$user['empresa_id'],$v,true);if(!$u||!$u['ativo']||$u['perfil']!=='funcionario'){throw new HttpException(400,'Vincule somente funcionários ativos.');}}$this->clients->replaceAccess($id,$ids,(int)$user['id']);$result=$this->find($user,$id);$this->db->commit();return $result;}
         catch(\Throwable $e){if($this->db->inTransaction()){$this->db->rollBack();}throw $e;}
     }
     public function contacts(array $user,int $client,int $limit,int $offset,array $query): array
@@ -78,7 +78,9 @@ final class ClienteService
     {
         Cliente::links($data);if(!isset($data['cliente_id'])){return $data;}$id=$data['cliente_id'];$this->clients->lock($id);$client=$this->find($user,$id);
         $employee??=(int)$user['id'];
-        if(!$client['ativo']||!$this->clients->hasAccess($id,$employee)){throw new HttpException(400,'Cliente indisponível para novos registros ou funcionário sem vínculo de acesso.');}
+        $person=$employee===(int)$user['id']?$user:(new UsuarioRepository($this->db))->inCompany((int)$user['empresa_id'],$employee);
+        $isAdmin=($person['perfil']??null)==='admin';
+        if(!$client['ativo']||(!$isAdmin&&!$this->clients->hasAccess($id,$employee))){throw new HttpException(400,'Cliente indisponível para novos registros ou funcionário sem vínculo de acesso.');}
         $contact=null;if(isset($data['contato_id'])){$contact=$this->clients->contact($data['contato_id']);if(!$contact||(int)$contact['cliente_id']!==$id||!$contact['ativo']){throw new HttpException(400,'Contato indisponível para este cliente.',['contato_id'=>'Selecione contato ativo do cliente escolhido.']);}}
         $data['empresa']=$client['nome_empresa'];if($contact){$data['contato']=$contact['nome'];}
         $clientSnapshot=array_intersect_key($client,array_flip(['id','nome_empresa','nome_fantasia','cnpj','cep','logradouro','numero','complemento','bairro','cidade','uf','pais']));

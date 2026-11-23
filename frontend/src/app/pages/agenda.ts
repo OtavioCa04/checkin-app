@@ -13,7 +13,12 @@ import {
 } from "@angular/forms";
 import { RouterLink } from "@angular/router";
 import { Api, errorMessage, fieldErrors } from "../api";
-import { Agendamento, AgendaOptions, ClienteSelection } from "../models";
+import {
+  Agendamento,
+  AgendaOptions,
+  ClienteSelection,
+  PessoaSetor,
+} from "../models";
 import { CustomerPicker } from "../customer-picker";
 import { Session } from "../session";
 import {
@@ -191,13 +196,13 @@ import { warnBeforeUnload } from "../unsaved";
                       @for (g of employeeGroups(); track g.setor) {
                         <optgroup [label]="g.setor">
                           @for (u of g.pessoas; track u.id) {
-                            <option [ngValue]="u.id">{{ u.nome }}</option>
+                            <option [ngValue]="u.id">{{ personLabel(u) }}</option>
                           }
                         </optgroup>
                       }
                     } @else {
                       @for (u of options().funcionarios; track u.id) {
-                        <option [ngValue]="u.id">{{ u.nome }}</option>
+                        <option [ngValue]="u.id">{{ personLabel(u) }}</option>
                       }
                     }
                   </select>
@@ -458,6 +463,9 @@ export class AgendaPage {
     funcionario_id: new FormControl<number | null>(null),
     setor_id: new FormControl<number | null>(null),
   });
+  personLabel(u: PessoaSetor): string {
+    return u.perfil === "admin" ? `${u.nome} (administrador)` : u.nome;
+  }
   /** Funcionários do filtro, limitados ao setor escolhido. */
   filterEmployees() {
     const sector = this.filters.controls.setor_id.value;
@@ -510,15 +518,15 @@ export class AgendaPage {
   canManage(item: Agendamento): boolean {
     const u = this.session.user;
     return (
-      u?.perfil === "admin" ||
-      (u?.perfil === "funcionario" && Number(item.usuario_id) === u.id)
+      u?.perfil === "admin" || (!!u && Number(item.usuario_id) === u.id)
     );
   }
+  /** Quem foi agendado (funcionário ou admin) faz o check-in. */
   canStart(item: Agendamento): boolean {
     const u = this.session.user;
     return (
       item.status === "pendente" &&
-      u?.perfil === "funcionario" &&
+      !!u &&
       Number(item.usuario_id) === u.id
     );
   }

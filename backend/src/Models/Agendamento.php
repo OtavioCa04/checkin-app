@@ -42,6 +42,6 @@ final class Agendamento
     public static function canRead(array $user, array $item): bool { return Visita::canRead($user, $item); }
     public static function canManage(array $user, array $item): bool
     {
-        return $user['perfil'] === 'admin' || ($user['perfil'] === 'funcionario' && (int) $user['id'] === (int) $item['usuario_id']);
+        return Visita::canRead($user, $item);
     }
 }

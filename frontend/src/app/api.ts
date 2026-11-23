@@ -13,6 +13,8 @@ import {
   NewUser,
   UserPatch,
   Setor,
+  Empresa,
+  NovaEmpresa,
   Agendamento,
   NovaAgenda,
   AgendaChange,
@@ -319,6 +321,38 @@ export class Api {
       await firstValueFrom(
         this.http.patch<ApiResponse<Visita>>(
           `${API_CONFIG.baseUrl}/visitas/${id}`,
+          data,
+        ),
+      )
+    ).data;
+  }
+  async companies(): Promise<Empresa[]> {
+    return (
+      await firstValueFrom(
+        this.http.get<ApiResponse<{ items: Empresa[] }>>(
+          `${API_CONFIG.baseUrl}/empresas`,
+        ),
+      )
+    ).data.items;
+  }
+  async createCompany(data: NovaEmpresa): Promise<Empresa> {
+    return (
+      await firstValueFrom(
+        this.http.post<ApiResponse<Empresa>>(
+          `${API_CONFIG.baseUrl}/empresas`,
+          data,
+        ),
+      )
+    ).data;
+  }
+  async updateCompany(
+    id: number,
+    data: Partial<Pick<Empresa, "nome" | "ativo">>,
+  ): Promise<Empresa> {
+    return (
+      await firstValueFrom(
+        this.http.patch<ApiResponse<Empresa>>(
+          `${API_CONFIG.baseUrl}/empresas/${id}`,
           data,
         ),
       )

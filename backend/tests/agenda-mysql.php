@@ -12,10 +12,10 @@ test('agenda cria, filtra, restringe perfis e expõe somente opções mínimas',
     rejects(fn()=>$agenda->list($actor,100,0,['funcionario_id'=>$other['id']]),403);
     check(count($agenda->list($admin,100,0,['funcionario_id'=>$actor['id'],'inicio'=>$planned['data_hora_prevista'],'fim'=>gmdate('Y-m-d\TH:i:s\Z',time()+86401)]))===1);
     check($agenda->list($admin,100,0,['fim'=>$planned['data_hora_prevista']])===[]);
-    $options=$agenda->options($actor);check(array_keys($options)===['funcionarios','setores']&&$options['setores']===[]&&count($options['funcionarios'])===1&&array_keys($options['funcionarios'][0])===['id','nome','setor_id','setor_nome']);
+    $options=$agenda->options($actor);check(array_keys($options)===['funcionarios','setores']&&$options['setores']===[]&&count($options['funcionarios'])===1&&array_keys($options['funcionarios'][0])===['id','nome','perfil','setor_id','setor_nome']);
     check(in_array((int)$other['id'],array_column($agenda->options($admin)['funcionarios'],'id'),true));
     $users->update((int)$other['id'],['ativo'=>false]);rejects(fn()=>$agenda->create($admin,[...$planned,'usuario_id'=>(int)$other['id']]),400);$users->update((int)$other['id'],['ativo'=>true]);
-    rejects(fn()=>$agenda->create($admin,[...$planned,'usuario_id'=>(int)$admin['id']]),400);
+    $own=$agenda->create($admin,[...$planned,'usuario_id'=>(int)$admin['id']]);check((int)$own['usuario_id']===(int)$admin['id']);$agenda->update($admin,(int)$own['id'],['acao'=>'cancelar','motivo'=>'Admin também vai a campo.']);
     rejects(fn()=>$agenda->create($admin,[...$planned,'responsavel_id'=>(int)$admin['id']]),400);
 });
 test('reagendamento e cancelamento auditam autor, horário e motivo; vencimento não cancela',function()use($agenda,$planned,$actor,$admin,$db,$visits,$data){
@@ -47,7 +47,7 @@ test('agendamento antigo com responsável mantém o histórico e aceita check-in
 test('check-in agenda mantém local, autorização, UTC e rollback sem realização prematura',function()use($agenda,$planned,$actor,$other,$admin,$visits,$data,$db){
     $item=$agenda->create($actor,$planned);$id=(int)$item['id'];$payload=[...$data,'agendamento_id'=>$id];
     rejects(fn()=>$visits->create($other,$payload,bin2hex(random_bytes(16))),404);
-    rejects(fn()=>$visits->create($admin,$payload,bin2hex(random_bytes(16))),403);
+    rejects(fn()=>$visits->create($admin,$payload,bin2hex(random_bytes(16))),404);
     rejects(fn()=>$visits->create($actor,[...$payload,'local'=>''],bin2hex(random_bytes(16))),400);
     rejects(fn()=>$visits->create($actor,[...$payload,'responsavel_id'=>(int)$other['id']],bin2hex(random_bytes(16))),400);
     check($agenda->find($actor,$id)['status']==='pendente');
@@ -60,7 +60,7 @@ test('check-in agenda mantém local, autorização, UTC e rollback sem realizaç
     check($agenda->find($actor,$id)['status']==='realizado');check($visits->create($actor,$payload,$key)==$v);
     rejects(fn()=>$visits->create($actor,$payload,bin2hex(random_bytes(16))),409);
     rejects(fn()=>$agenda->update($actor,$id,['acao'=>'cancelar','motivo'=>'Teste']),409);
-    $unique=false;try{$db->exec('INSERT INTO visitas (usuario_id,local,contato,empresa,assunto,descricao,data_hora_checkin,agendamento_id) SELECT usuario_id,local,contato,empresa,assunto,descricao,UTC_TIMESTAMP(),agendamento_id FROM visitas WHERE id='.(int)$v['id']);}catch(PDOException $e){$unique=(int)($e->errorInfo[1]??0)===1062;}check($unique);
+    $unique=false;try{$db->exec('INSERT INTO visitas (empresa_id,usuario_id,local,contato,empresa,assunto,descricao,data_hora_checkin,agendamento_id) SELECT empresa_id,usuario_id,local,contato,empresa,assunto,descricao,UTC_TIMESTAMP(),agendamento_id FROM visitas WHERE id='.(int)$v['id']);}catch(PDOException $e){$unique=(int)($e->errorInfo[1]??0)===1062;}check($unique);
 });
 test('dois check-ins simultâneos com chaves diferentes realizam uma única agenda',function()use($agenda,$planned,$actor,$data,$db){
     $item=$agenda->create($actor,$planned);$id=(int)$item['id'];

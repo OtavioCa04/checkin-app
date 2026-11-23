@@ -13,8 +13,11 @@ return static function (Router $router): void {
         $users = new UsuarioRepository($db);
         $auth = new AuthService($users, new TokenRepository($db), new LoginLimiter($db));
         $middleware = new AuthMiddleware($auth);
-        return [new AuthController($auth, $middleware), new VisitaController(new VisitaService($db, new VisitaRepository($db), $users), $middleware), new UsuarioController($users, $middleware, new UsuarioService($db, $users)), new \App\Controllers\AgendamentoController(new \App\Services\AgendamentoService($db, new \App\Repositories\AgendamentoRepository($db), $users), $middleware), new \App\Controllers\ClienteController(new \App\Services\ClienteService($db),$middleware), new \App\Controllers\RetornoController(new \App\Services\RetornoService($db),$middleware), new \App\Controllers\SetorController(new \App\Services\SetorService($db), $middleware)];
+        return [new AuthController($auth, $middleware), new VisitaController(new VisitaService($db, new VisitaRepository($db), $users), $middleware), new UsuarioController($users, $middleware, new UsuarioService($db, $users)), new \App\Controllers\AgendamentoController(new \App\Services\AgendamentoService($db, new \App\Repositories\AgendamentoRepository($db), $users), $middleware), new \App\Controllers\ClienteController(new \App\Services\ClienteService($db),$middleware), new \App\Controllers\RetornoController(new \App\Services\RetornoService($db),$middleware), new \App\Controllers\SetorController(new \App\Services\SetorService($db), $middleware), new \App\Controllers\EmpresaController(new \App\Services\EmpresaService($db), $middleware)];
     };
+    foreach ([['GET', '/empresas', 'index'], ['POST', '/empresas', 'create'], ['PATCH', '/empresas/{id}', 'update']] as [$method, $path, $action]) {
+        $router->add($method, '/api/v1' . $path, static fn (...$args) => $controllers()[7]->$action(...$args));
+    }
     foreach ([['GET', '/setores', 'index'], ['POST', '/setores', 'create'], ['PATCH', '/setores/{id}', 'update']] as [$method, $path, $action]) {
         $router->add($method, '/api/v1' . $path, static fn (...$args) => $controllers()[6]->$action(...$args));
     }

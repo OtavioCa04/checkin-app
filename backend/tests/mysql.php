@@ -34,7 +34,7 @@ try{
     require dirname(__DIR__).'/bin/migrate.php';
     $db=Database::connection();$users=new UsuarioRepository($db);$visits=new VisitaService($db,new VisitaRepository($db),$users);$management=new UsuarioService($db,$users);
     $ids=[];
-    foreach(['admin','admin','funcionario','funcionario'] as $i=>$role){$ids[]=$users->create(['nome'=>'Usuário '.$i,'email'=>"teste$i@example.test",'senha_hash'=>password_hash('senha-teste-123',PASSWORD_DEFAULT),'perfil'=>$role,'ativo'=>true]);}
+    foreach(['admin','admin','funcionario','funcionario'] as $i=>$role){$ids[]=$users->create(['empresa_id'=>1,'nome'=>'Usuário '.$i,'email'=>"teste$i@example.test",'senha_hash'=>password_hash('senha-teste-123',PASSWORD_DEFAULT),'perfil'=>$role,'ativo'=>true]);}
     $actor=$users->byId($ids[2]);$other=$users->byId($ids[3]);$resp=$users->byId($ids[1]);$admin=$users->byId($ids[0]);
     $data=['contato'=>'Contato','empresa'=>'Empresa Teste','assunto'=>'Assunto','descricao'=>'Descrição','local'=>'Rua Teste, 100 - São Paulo'];
     test('idempotência repete snapshot, conflito e isolamento por funcionário',function()use($visits,$actor,$other,$data){
@@ -108,7 +108,7 @@ try{
     });
     test('desativar ou trocar perfil revoga tokens e reativação não os restaura',function()use($management,$admin,$users){
         $tokens=new \App\Repositories\TokenRepository($db=Database::connection());$future=gmdate('Y-m-d H:i:s',time()+3600);
-        $id=$users->create(['nome'=>'Sessão Revogada','email'=>'revoga@example.test','senha_hash'=>password_hash('senha-teste-123',PASSWORD_DEFAULT),'perfil'=>'funcionario','ativo'=>true]);
+        $id=$users->create(['empresa_id'=>1,'nome'=>'Sessão Revogada','email'=>'revoga@example.test','senha_hash'=>password_hash('senha-teste-123',PASSWORD_DEFAULT),'perfil'=>'funcionario','ativo'=>true]);
         $tokens->create($id,str_repeat('1',64),$future);$tokens->create($id,str_repeat('2',64),gmdate('Y-m-d H:i:s',time()-60));
         $management->save($admin,['nome'=>'Sessão Mantida'],$id);check($tokens->user(str_repeat('1',64))!==null);
         $management->save($admin,['ativo'=>false],$id);$management->save($admin,['ativo'=>true],$id);check($tokens->user(str_repeat('1',64))===null);
@@ -120,6 +120,7 @@ try{
     require __DIR__.'/setores-mysql.php';
     require __DIR__.'/clientes-mysql.php';
     require __DIR__.'/audit-mysql.php';
+    require __DIR__.'/empresas-mysql.php';
     test('gestão administrativa protege permissões e não expõe hashes',function()use($management,$admin,$actor,$ids,$visits){
         rejects(fn()=>$management->save($actor,['ativo'=>false],$ids[0]),403);
         $u=$management->save($admin,['nome'=>'Criado','email'=>'novo@example.test','perfil'=>'funcionario','ativo'=>true,'senha'=>'senha-teste-123']);check(!isset($u['senha_hash']));
@@ -129,14 +130,14 @@ try{
     });
     test('admins concorrentes nunca removem último administrador ativo',function()use($ids,$db,$users,$management){
         $result=concurrent([['action'=>'user','actor'=>$ids[0],'target'=>$ids[1]],['action'=>'user','actor'=>$ids[1],'target'=>$ids[0]]]);
-        check($users->activeAdmins()===1);check(count(array_filter($result,fn($r)=>$r['status']===200))===1);
+        check($users->activeAdmins(1)===1);check(count(array_filter($result,fn($r)=>$r['status']===200))===1);
         $remaining=$db->query("SELECT * FROM usuarios WHERE perfil='admin' AND ativo=1")->fetch();rejects(fn()=>$management->save($remaining,['perfil'=>'funcionario'],(int)$remaining['id']),409);
     });
     test('remoção concorrente de perfil mantém um administrador ativo',function()use($db,$users){
         $remaining=(int)$db->query("SELECT id FROM usuarios WHERE perfil='admin' AND ativo=1")->fetchColumn();
-        $second=$users->create(['nome'=>'Administrador concorrente fictício','email'=>'admin-concorrente@example.test','senha_hash'=>password_hash('somente-testes-2026',PASSWORD_DEFAULT),'perfil'=>'admin','ativo'=>true]);
+        $second=$users->create(['empresa_id'=>1,'nome'=>'Administrador concorrente fictício','email'=>'admin-concorrente@example.test','senha_hash'=>password_hash('somente-testes-2026',PASSWORD_DEFAULT),'perfil'=>'admin','ativo'=>true]);
         $jobs=[];foreach([$remaining,$second]as$id){$jobs[]=['action'=>'user','actor'=>$id,'target'=>$id,'data'=>['perfil'=>'funcionario']];}
-        $statuses=array_column(concurrent($jobs),'status');sort($statuses);check($statuses===[200,409]&&$users->activeAdmins()===1);
+        $statuses=array_column(concurrent($jobs),'status');sort($statuses);check($statuses===[200,409]&&$users->activeAdmins(1)===1);
     });
 }catch(Throwable $e){
     echo 'Integração indisponível/falhou: '.get_class($e).' (código '.(int)$e->getCode()."). Nenhuma credencial foi exibida.\n";$failed++;

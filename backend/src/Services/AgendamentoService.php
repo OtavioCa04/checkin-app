@@ -2,7 +2,7 @@
 declare(strict_types=1);
 namespace App\Services;
 use App\Core\HttpException;
-use App\Models\Agendamento;
+use App\Models\{Agendamento, Visita};
 use App\Repositories\{AgendamentoRepository, UsuarioRepository};
 use PDO;
 
@@ -12,9 +12,11 @@ final class AgendamentoService
     public function options(array $user): array
     {
         if (!in_array($user['perfil'], ['admin', 'funcionario'], true)) { throw new HttpException(403, 'Sem permissão para agendar.'); }
-        if ($user['perfil'] !== 'admin') { return ['funcionarios' => [['id' => (int) $user['id'], 'nome' => $user['nome'], 'setor_id' => null, 'setor_nome' => null]], 'setores' => []]; }
-        $sectors = array_map(static fn ($s) => ['id' => $s['id'], 'nome' => $s['nome']], (new \App\Repositories\SetorRepository($this->db))->list(true));
-        return ['funcionarios' => $this->items->people('funcionario'), 'setores' => $sectors];
+        if ($user['perfil'] !== 'admin') { return ['funcionarios' => [['id' => (int) $user['id'], 'nome' => $user['nome'], 'perfil' => $user['perfil'], 'setor_id' => null, 'setor_nome' => null]], 'setores' => []]; }
+        $company = (int) $user['empresa_id'];
+        $sectors = array_map(static fn ($s) => ['id' => $s['id'], 'nome' => $s['nome']], (new \App\Repositories\SetorRepository($this->db))->list($company, true));
+        // Administradores também vão a campo e podem receber agendamentos.
+        return ['funcionarios' => $this->items->people($company, Visita::PERFIS_CAMPO), 'setores' => $sectors];
     }
     public function find(array $user, int $id): array
     {
@@ -39,7 +41,7 @@ final class AgendamentoService
             if (!$id) { throw new HttpException(400, $message); } $filters[$key] = $id;
         }
         $column = $user['perfil'] === 'admin' ? null : 'usuario_id';
-        return $this->items->list($column, (int) $user['id'], $limit, $offset, $filters);
+        return $this->items->list((int) $user['empresa_id'], $column, (int) $user['id'], $limit, $offset, $filters);
     }
     public function create(array $user, array $input): array
     {
@@ -53,9 +55,9 @@ final class AgendamentoService
         if($ownsTransaction){$this->db->beginTransaction();}
         try {
             $data=(new ClienteService($this->db))->snapshot($user,$data,$data['usuario_id']);
-            $person = $this->users->byId($data['usuario_id'], true);
-            if (!$person || !$person['ativo'] || $person['perfil'] !== 'funcionario') { throw new HttpException(400, 'Dados inválidos.', ['usuario_id' => 'Selecione uma pessoa ativa com o perfil adequado.']); }
-            $data['criado_por'] = (int) $user['id']; $id = $this->items->create($data);
+            $person = $this->users->inCompany((int) $user['empresa_id'], $data['usuario_id'], true);
+            if (!$person || !$person['ativo'] || !in_array($person['perfil'], Visita::PERFIS_CAMPO, true)) { throw new HttpException(400, 'Dados inválidos.', ['usuario_id' => 'Selecione uma pessoa ativa com o perfil adequado.']); }
+            $data['criado_por'] = (int) $user['id']; $data['empresa_id'] = (int) $user['empresa_id']; $id = $this->items->create($data);
             $this->items->event($id, (int) $user['id'], 'criado', '', null, $data['data_hora_prevista']);
             $result = $this->find($user, $id); if($ownsTransaction){$this->db->commit();} return $result;
         } catch (\Throwable $e) { if ($ownsTransaction && $this->db->inTransaction()) { $this->db->rollBack(); } throw $e; }

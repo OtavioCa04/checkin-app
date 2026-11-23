@@ -28,23 +28,24 @@ final class SetorService
     {
         self::admin($actor);
         if (array_diff(array_keys($query), ['ativo'])) { throw new HttpException(400, 'Filtro inválido.'); }
-        return $this->sectors->list(ClienteService::active($query));
+        return $this->sectors->list((int) $actor['empresa_id'], ClienteService::active($query));
     }
     public function save(array $actor, array $input, ?int $id = null): array
     {
         self::admin($actor);
         $data = self::validate($input, $id === null);
+        $company = (int) $actor['empresa_id'];
         try {
-            if ($id === null) { $id = $this->sectors->create($data['nome']); }
+            if ($id === null) { $id = $this->sectors->create($company, $data['nome']); }
             else {
-                if (!$this->sectors->find($id)) { throw new HttpException(404, 'Setor não encontrado.'); }
-                $this->sectors->update($id, $data);
+                if (!$this->sectors->find($company, $id)) { throw new HttpException(404, 'Setor não encontrado.'); }
+                $this->sectors->update($company, $id, $data);
             }
         } catch (\PDOException $e) {
             if ((int) ($e->errorInfo[1] ?? 0) === 1062) { throw new HttpException(409, 'Já existe um setor com esse nome.'); }
             throw $e;
         }
-        return $this->sectors->find($id);
+        return $this->sectors->find($company, $id);
     }
     private static function admin(array $actor): void
     {

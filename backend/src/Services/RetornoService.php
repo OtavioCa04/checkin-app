@@ -25,7 +25,7 @@ final class RetornoService
         if(isset($filters['inicio'],$filters['fim'])&&$filters['inicio']>=$filters['fim']){throw new HttpException(400,'Fim deve ser posterior ao início.');}$filters['referencia']??=gmdate('Y-m-d');
         if(isset($query['status'])){if(!in_array($query['status'],['pendente','realizado','cancelado','atrasado','hoje'],true)){throw new HttpException(400,'Situação inválida.');}$filters['status']=$query['status'];}
         if(isset($query['funcionario_id'])){if($user['perfil']!=='admin'){throw new HttpException(403,'Filtro exclusivo do administrador.');}$id=filter_var($query['funcionario_id'],FILTER_VALIDATE_INT,['options'=>['min_range'=>1,'max_range'=>4294967295]]);if(!$id){throw new HttpException(400,'Funcionário inválido.');}$filters['funcionario_id']=$id;}
-        $column=$user['perfil']==='admin'?null:'usuario_id';return $this->items->list($column,(int)$user['id'],$limit,$offset,$filters);
+        $column=$user['perfil']==='admin'?null:'usuario_id';return $this->items->list((int)$user['empresa_id'],$column,(int)$user['id'],$limit,$offset,$filters);
     }
     public function update(array $user,int $id,array $input):array
     {

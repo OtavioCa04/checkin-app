@@ -35,14 +35,17 @@ import { roleLabel } from "./shared";
             <a routerLink="/visitas" routerLinkActive="active"
               ><span aria-hidden="true">▤</span> Visitas</a
             >
-            @if (login.usuario.perfil === "funcionario") {
-              <a routerLink="/nova-visita" routerLinkActive="active"
-                ><span aria-hidden="true">＋</span> Novo check-in</a
-              >
-            }
+            <a routerLink="/nova-visita" routerLinkActive="active"
+              ><span aria-hidden="true">＋</span> Novo check-in</a
+            >
             @if (login.usuario.perfil === "admin") {
               <a routerLink="/usuarios" routerLinkActive="active"
                 ><span aria-hidden="true">♧</span> Usuários</a
+              >
+            }
+            @if (login.usuario.superadmin) {
+              <a routerLink="/empresas" routerLinkActive="active"
+                ><span aria-hidden="true">▣</span> Empresas</a
               >
             }
           </nav>
@@ -66,9 +69,13 @@ import { roleLabel } from "./shared";
         </aside>
         <main id="conteudo" class="workspace" tabindex="-1">
           <header class="topbar">
-            <span>REGISTRO E ACOMPANHAMENTO</span
+            <span>{{
+              login.usuario.empresa_nome || "REGISTRO E ACOMPANHAMENTO"
+            }}</span
             ><span class="profile-badge">{{
-              labels[login.usuario.perfil]
+              login.usuario.superadmin
+                ? "Superadmin"
+                : labels[login.usuario.perfil]
             }}</span>
           </header>
           <div class="page-content"><router-outlet /></div>

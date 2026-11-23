@@ -64,6 +64,15 @@ export const roleGuard =
         ? true
         : router.createUrlTree(["/acesso-negado"]);
   };
+export const superadminGuard: CanActivateFn = () => {
+  const user = inject(Session).user;
+  const router = inject(Router);
+  return !user
+    ? router.createUrlTree(["/login"])
+    : user.superadmin
+      ? true
+      : router.createUrlTree(["/acesso-negado"]);
+};
 @Injectable({ providedIn: "root" })
 export class Auth {
   private readonly http = inject(HttpClient);

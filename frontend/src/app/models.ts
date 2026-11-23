@@ -7,6 +7,25 @@ export interface Usuario {
   ativo: boolean;
   setor_id?: number | null;
   setor_nome?: string | null;
+  empresa_id?: number | null;
+  empresa_nome?: string | null;
+  /** Dono do Na Rua: cria e gerencia as empresas clientes. */
+  superadmin?: boolean;
+}
+export interface Empresa {
+  id: number;
+  nome: string;
+  ativo: boolean;
+  criado_em: string;
+  usuarios: number;
+  admins: number;
+  visitas_30d: number;
+}
+export interface NovaEmpresa {
+  nome: string;
+  admin_nome: string;
+  admin_email: string;
+  admin_senha: string;
 }
 export interface Pessoa {
   id: number;
@@ -14,6 +33,7 @@ export interface Pessoa {
 }
 /** Funcionário com o setor, usado para agrupar listas de escolha. */
 export interface PessoaSetor extends Pessoa {
+  perfil?: Perfil;
   setor_id?: number | null;
   setor_nome?: string | null;
 }

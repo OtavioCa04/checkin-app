@@ -20,24 +20,24 @@ final class AgendamentoRepository
     {
         $q = $this->db->prepare('SELECT e.*, u.nome AS autor_nome FROM agendamento_eventos e JOIN usuarios u ON u.id=e.autor_id WHERE e.agendamento_id=? ORDER BY e.id'); $q->execute([$id]); return $q->fetchAll();
     }
-    public function list(?string $column, int $userId, int $limit, int $offset, array $filters): array
+    public function list(int $company, ?string $column, int $userId, int $limit, int $offset, array $filters): array
     {
         if (!in_array($column, [null, 'usuario_id'], true)) { throw new \InvalidArgumentException(); }
-        $where = []; $values = [];
+        $where = ['a.empresa_id=?']; $values = [$company];
         if ($column) { $where[] = "a.{$column}=?"; $values[] = $userId; }
         foreach (['inicio' => 'a.data_hora_prevista>=?', 'fim' => 'a.data_hora_prevista<?', 'funcionario_id' => 'a.usuario_id=?', 'setor_id' => 'u.setor_id=?'] as $key => $clause) {
             if (isset($filters[$key])) { $where[] = $clause; $values[] = $filters[$key]; }
         }
         if (($filters['status'] ?? '') === 'atrasado') { $where[] = "a.status='pendente' AND a.data_hora_prevista<UTC_TIMESTAMP()"; }
         elseif (isset($filters['status'])) { $where[] = 'a.status=?'; $values[] = $filters['status']; }
-        $q = $this->db->prepare(self::SELECT . ($where ? ' WHERE ' . implode(' AND ', $where) : '') . ' ORDER BY a.data_hora_prevista, a.id LIMIT ? OFFSET ?');
+        $q = $this->db->prepare(self::SELECT . ' WHERE ' . implode(' AND ', $where) . ' ORDER BY a.data_hora_prevista, a.id LIMIT ? OFFSET ?');
         $i = 1;
         foreach ($values as $v) { $q->bindValue($i++, $v, is_int($v) ? PDO::PARAM_INT : PDO::PARAM_STR); }
         $q->bindValue($i++, $limit, PDO::PARAM_INT); $q->bindValue($i, $offset, PDO::PARAM_INT); $q->execute(); return $q->fetchAll();
     }
     public function create(array $data): int
     {
-        $keys = ['usuario_id', 'criado_por', 'empresa', 'contato', 'assunto', 'observacoes', 'data_hora_prevista', 'cliente_id', 'contato_id', 'cadastro_snapshot'];
+        $keys = ['empresa_id', 'usuario_id', 'criado_por', 'empresa', 'contato', 'assunto', 'observacoes', 'data_hora_prevista', 'cliente_id', 'contato_id', 'cadastro_snapshot'];
         $q = $this->db->prepare('INSERT INTO agendamentos (' . implode(',', $keys) . ') VALUES ('.implode(',',array_fill(0,count($keys),'?')).')');
         $q->execute(array_map(static fn ($key) => $data[$key] ?? null, $keys)); return (int) $this->db->lastInsertId();
     }
@@ -50,10 +50,11 @@ final class AgendamentoRepository
         $q = $this->db->prepare('INSERT INTO agendamento_eventos (agendamento_id,autor_id,acao,motivo,data_anterior,data_nova,criado_em) VALUES (?,?,?,?,?,?,UTC_TIMESTAMP())');
         $q->execute([$id, $author, $action, $reason, $old, $new]);
     }
-    public function people(string $role): array
+    public function people(int $company, array $roles): array
     {
-        $q = $this->db->prepare('SELECT u.id,u.nome,u.setor_id,s.nome AS setor_nome FROM usuarios u LEFT JOIN setores s ON s.id=u.setor_id WHERE u.perfil=? AND u.ativo=1 ORDER BY u.nome,u.id'); $q->execute([$role]);
-        return array_map(static fn ($u) => ['id' => (int) $u['id'], 'nome' => $u['nome'], 'setor_id' => $u['setor_id'] === null ? null : (int) $u['setor_id'], 'setor_nome' => $u['setor_nome']], $q->fetchAll());
+        $in = implode(',', array_fill(0, count($roles), '?'));
+        $q = $this->db->prepare("SELECT u.id,u.nome,u.perfil,u.setor_id,s.nome AS setor_nome FROM usuarios u LEFT JOIN setores s ON s.id=u.setor_id WHERE u.empresa_id=? AND u.perfil IN ({$in}) AND u.ativo=1 ORDER BY u.nome,u.id"); $q->execute([$company, ...$roles]);
+        return array_map(static fn ($u) => ['id' => (int) $u['id'], 'nome' => $u['nome'], 'perfil' => $u['perfil'], 'setor_id' => $u['setor_id'] === null ? null : (int) $u['setor_id'], 'setor_nome' => $u['setor_nome']], $q->fetchAll());
     }
     public function linkReturn(int $id,int $returnId): void
     {

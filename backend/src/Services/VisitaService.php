@@ -18,7 +18,7 @@ final class VisitaService
     }
     public function create(array $user, array $input, string $key): array
     {
-        if ($user['perfil'] !== 'funcionario') { throw new HttpException(403, 'Somente funcionários podem fazer check-in.'); }
+        if (!in_array($user['perfil'], Visita::PERFIS_CAMPO, true)) { throw new HttpException(403, 'Seu perfil não faz check-in.'); }
         if (!preg_match('/^[A-Za-z0-9_-]{16,80}$/D', $key)) { throw new HttpException(400, 'Envie Idempotency-Key com 16 a 80 caracteres alfanuméricos, hífen ou sublinhado.'); }
         $data = Visita::validate($input, true);
         $requests = new \App\Repositories\VisitaRequestRepository($this->db);
@@ -40,6 +40,7 @@ final class VisitaService
             }
             $data=(new ClienteService($this->db))->snapshot($user,$data);
             $data['usuario_id'] = (int) $user['id'];
+            $data['empresa_id'] = (int) $user['empresa_id'];
             $result = $this->find($user, $this->visits->create($data));
             if ($scheduled) {
                 $agenda->change((int) $scheduled['id'], 'realizado', $scheduled['data_hora_prevista']);
@@ -59,7 +60,7 @@ final class VisitaService
     {
         $column = $user['perfil'] === 'admin' ? null : 'usuario_id';
         $filters = \App\Core\VisitFilters::read($query, $user['perfil']);
-        return $this->visits->list($column, (int) $user['id'], $limit, $offset, $filters);
+        return $this->visits->list((int) $user['empresa_id'], $column, (int) $user['id'], $limit, $offset, $filters);
     }
     public function update(array $user, int $id, array $input): array
     {
@@ -67,7 +68,7 @@ final class VisitaService
         try {
             $visit = $this->visits->find($id, true);
             if (!$visit || !Visita::canRead($user, $visit)) { throw new HttpException(404, 'Visita não encontrada.'); }
-            if ($user['perfil'] !== 'admin' && !($user['perfil'] === 'funcionario' && (int) $visit['usuario_id'] === (int) $user['id'])) { throw new HttpException(403, 'Sem permissão para editar.'); }
+            if ($user['perfil'] !== 'admin' && (int) $visit['usuario_id'] !== (int) $user['id']) { throw new HttpException(403, 'Sem permissão para editar.'); }
             if ($visit['status'] === 'concluida') { throw new HttpException(409, 'Visita concluída não pode ser editada.'); }
             $data = Visita::validate($input, false);
             foreach(['empresa'=>'cliente_id','contato'=>'contato_id'] as $field=>$link){if($visit[$link]!==null && isset($data[$field]) && $data[$field]!==$visit[$field]){throw new HttpException(400,'O retrato cadastral da visita não pode ser alterado.',[$field=>'Campo vinculado ao cadastro no momento do check-in.']);}}
@@ -95,7 +96,7 @@ final class VisitaService
         try {
             $visit = $this->visits->find($id, true);
             if (!$visit || !Visita::canRead($user, $visit)) { throw new HttpException(404, 'Visita não encontrada.'); }
-            if ($user['perfil'] !== 'funcionario' || (int) $visit['usuario_id'] !== (int) $user['id']) { throw new HttpException(403, 'Somente o funcionário da visita envia a foto.'); }
+            if ((int) $visit['usuario_id'] !== (int) $user['id']) { throw new HttpException(403, 'Somente quem fez a visita envia a foto.'); }
             if ($visit['status'] === 'concluida') { throw new HttpException(409, 'Visita concluída não recebe foto.'); }
             if ($visit['tem_foto']) { throw new HttpException(409, 'Esta visita já tem foto.'); }
             if (!@copy($tmpPath, $target)) { throw new \RuntimeException('Falha ao gravar a foto.'); }

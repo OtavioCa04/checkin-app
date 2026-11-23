@@ -19,9 +19,7 @@ import { LocalDatePipe, roleLabel } from "../shared";
         <h1>Visitas</h1>
         <p class="muted">{{ scope }}</p>
       </div>
-      @if (session.user?.perfil === "funcionario") {
-        <a class="button primary" routerLink="/nova-visita">＋ Novo check-in</a>
-      }
+      <a class="button primary" routerLink="/nova-visita">＋ Novo check-in</a>
     </div>
     <section class="panel form-panel">
       <form

@@ -16,8 +16,7 @@ export function canEdit(user: Usuario | null, visit: Visita): boolean {
   return (
     visit.status === "em_andamento" &&
     !!user &&
-    (user.perfil === "admin" ||
-      (user.perfil === "funcionario" && Number(visit.usuario_id) === user.id))
+    (user.perfil === "admin" || Number(visit.usuario_id) === user.id)
   );
 }
 export function utcDate(value: string): Date {

@@ -13,9 +13,7 @@ import { LocalDatePipe } from "../shared";
         <h1>Olá, {{ session.user?.nome?.split(" ")?.[0] }}.</h1>
         <p class="muted">{{ scope }}</p>
       </div>
-      @if (session.user?.perfil === "funcionario") {
-        <a class="button primary" routerLink="/nova-visita">＋ Novo check-in</a>
-      }
+      <a class="button primary" routerLink="/nova-visita">＋ Novo check-in</a>
     </div>
     <section class="welcome-banner">
       <div>
@@ -50,11 +48,9 @@ import { LocalDatePipe } from "../shared";
         <span class="empty-icon" aria-hidden="true">↗</span>
         <h3>Seu espaço está pronto</h3>
         <p>Nenhuma visita disponível para seu perfil.</p>
-        @if (session.user?.perfil === "funcionario") {
-          <a routerLink="/nova-visita" class="button secondary"
-            >Registrar primeira visita</a
-          >
-        }
+        <a routerLink="/nova-visita" class="button secondary"
+          >Registrar primeira visita</a
+        >
       </div>
     } @else {
       <div class="recent-grid">

@@ -1,5 +1,5 @@
 import { Routes } from "@angular/router";
-import { protectedGuard, roleGuard } from "./auth";
+import { protectedGuard, roleGuard, superadminGuard } from "./auth";
 import { unsavedGuard } from "./unsaved";
 export const routes: Routes = [
   {
@@ -57,7 +57,7 @@ export const routes: Routes = [
       },
       {
         path: "nova-visita",
-        canActivate: [roleGuard("funcionario")],
+        canActivate: [roleGuard("funcionario", "admin")],
         canDeactivate: [unsavedGuard],
         title: "Novo check-in · Na Rua",
         loadComponent: () => import("./pages/create").then((m) => m.CreatePage),
@@ -75,6 +75,14 @@ export const routes: Routes = [
         title: "Usuários · Na Rua",
         loadComponent: () =>
           import("./pages/lists").then((m) => m.UserListPage),
+      },
+      {
+        path: "empresas",
+        canActivate: [superadminGuard],
+        canDeactivate: [unsavedGuard],
+        title: "Empresas · Na Rua",
+        loadComponent: () =>
+          import("./pages/companies").then((m) => m.CompaniesPage),
       },
       {
         path: "acesso-negado",

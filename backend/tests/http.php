@@ -45,7 +45,7 @@ try{
     $server->exec("CREATE DATABASE `$target` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");$created=true;
     $_ENV['DB_DATABASE']=$target;require dirname(__DIR__).'/bin/migrate.php';$db=Database::connection();$users=new UsuarioRepository($db);
     $credentials=bin2hex(random_bytes(18));$identities=[];
-    foreach(['admin','admin','funcionario','funcionario','admin','admin'] as $i=>$role){$identities[]=$users->create(['nome'=>'HTTP Fictício '.$i,'email'=>"http$i@example.test",'senha_hash'=>password_hash($credentials,PASSWORD_DEFAULT),'perfil'=>$role,'ativo'=>true]);}
+    foreach(['admin','admin','funcionario','funcionario','admin','admin'] as $i=>$role){$identities[]=$users->create(['empresa_id'=>1,'nome'=>'HTTP Fictício '.$i,'email'=>"http$i@example.test",'senha_hash'=>password_hash($credentials,PASSWORD_DEFAULT),'perfil'=>$role,'ativo'=>true]);}
     $environment=[...getenv(),'DB_HOST'=>$host,'DB_PORT'=>$dbPort,'DB_DATABASE'=>$target,'DB_USERNAME'=>$username,'DB_PASSWORD'=>$password,'LOGIN_IP_LIMIT'=>'100','LOGIN_ACCOUNT_LIMIT'=>'10','CORS_ORIGINS'=>'http://localhost:4202','TRUSTED_PROXIES'=>''];
     $process=proc_open([PHP_BINARY,'-d','variables_order=EGPCS','-S',"127.0.0.1:$port",'-t','public','public/index.php'],[0=>['pipe','r'],1=>['file',$log,'a'],2=>['file',$log,'a']],$pipes,dirname(__DIR__),$environment);
     if(!is_resource($process)){throw new RuntimeException('Servidor não iniciou.');}fclose($pipes[0]);
@@ -74,6 +74,9 @@ try{
         callApi('POST','/visitas',409,$tokens[2],[...$payload,'descricao'=>'Diferente'],['Idempotency-Key: '.$key]);
         callApi('POST','/visitas',409,$tokens[2],$payload,['Idempotency-Key: '.bin2hex(random_bytes(16))]);
         ensure((int)$db->query('SELECT COUNT(*) FROM visitas')->fetchColumn()===1);
+        // Admin também vai a campo: check-in próprio pela API (controller e serviço).
+        $ownPayload=$payload;unset($ownPayload['agendamento_id']);
+        $own=callApi('POST','/visitas',201,$tokens[0],$ownPayload,['Idempotency-Key: '.bin2hex(random_bytes(16))]);ensure($db->query('SELECT perfil FROM usuarios WHERE id='.(int)$own['usuario_id'])->fetchColumn()==='admin');
     });
     scenario('foto opcional por multipart, servida só com token e escopo',function()use($tokens,&$visit,$db){
         $png=base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==');

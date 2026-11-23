@@ -272,7 +272,7 @@ import { warnBeforeUnload } from "../unsaved";
           />
         </div>
         <button
-          class="button primary compact"
+          class="button primary"
           type="submit"
           [disabled]="sectorBusy() || !newSector().trim()"
         >
@@ -327,7 +327,7 @@ import { warnBeforeUnload } from "../unsaved";
           </table>
         </div>
       } @else if (!sectorBusy()) {
-        <div class="state-card">
+        <div class="sector-empty">
           Nenhum setor ainda. Crie setores como Vendas ou Logística para
           agrupar a equipe na agenda.
         </div>

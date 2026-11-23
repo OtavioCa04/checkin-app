@@ -28,11 +28,16 @@ test('configuração mantém "0" e usa padrão só para ausente ou vazio', funct
     unset($_ENV['TESTE_ZERO'], $_ENV['TESTE_VAZIO']);
 });
 test('agenda separa leitura de gestão conforme identidade e perfil', function (): void {
-    $item = ['usuario_id' => 2, 'responsavel_id' => 3];
-    foreach ([['id'=>1,'perfil'=>'admin'],['id'=>2,'perfil'=>'funcionario']] as $user) { check(Agendamento::canManage($user, $item)); check(Agendamento::canRead($user, $item)); }
-    check(!Agendamento::canRead(['id'=>3,'perfil'=>'responsavel'], $item));
-    check(!Agendamento::canManage(['id'=>3,'perfil'=>'responsavel'], $item));
-    check(!Agendamento::canRead(['id'=>4,'perfil'=>'funcionario'], $item));
+    $item = ['empresa_id' => 1, 'usuario_id' => 2, 'responsavel_id' => 3];
+    foreach ([['id'=>1,'empresa_id'=>1,'perfil'=>'admin'],['id'=>2,'empresa_id'=>1,'perfil'=>'funcionario']] as $user) { check(Agendamento::canManage($user, $item)); check(Agendamento::canRead($user, $item)); }
+    check(!Agendamento::canRead(['id'=>3,'empresa_id'=>1,'perfil'=>'responsavel'], $item));
+    check(!Agendamento::canManage(['id'=>3,'empresa_id'=>1,'perfil'=>'responsavel'], $item));
+    check(!Agendamento::canRead(['id'=>4,'empresa_id'=>1,'perfil'=>'funcionario'], $item));
+    // Admin de outra empresa não lê nem gerencia.
+    check(!Agendamento::canRead(['id'=>9,'empresa_id'=>2,'perfil'=>'admin'], $item));
+    check(!Agendamento::canManage(['id'=>9,'empresa_id'=>2,'perfil'=>'admin'], $item));
+    // Admin também é dono dos próprios agendamentos.
+    check(Agendamento::canManage(['id'=>1,'empresa_id'=>1,'perfil'=>'admin'], [...$item, 'usuario_id' => 1]));
 });
 test('visita permite vínculo numérico na criação e não permite alterar vínculo', function () use ($input): void {
     check(Visita::validate([...$input,'agendamento_id'=>2], true)['agendamento_id'] === 2);

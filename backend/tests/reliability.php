@@ -57,10 +57,11 @@ final class QueryTestDatabase extends PDO
 }
 test('SQL dos filtros mantém escopo AND e JOIN sem N+1', function (): void {
     $db=new QueryTestDatabase();$repository=new App\Repositories\VisitaRepository($db);
-    $repository->list('usuario_id',7,20,0,['empresa'=>'%_!','status'=>'concluida','inicio'=>'2026-10-01 00:00:00']);
-    check(str_contains($db->statement->sql,'WHERE v.usuario_id = ? AND'));
+    $repository->list(5,'usuario_id',7,20,0,['empresa'=>'%_!','status'=>'concluida','inicio'=>'2026-10-01 00:00:00']);
+    // A empresa vem sempre primeiro no WHERE: nenhuma listagem atravessa empresas.
+    check(str_contains($db->statement->sql,'WHERE v.empresa_id = ? AND v.usuario_id = ? AND'));
     // Responsável virou histórico opcional: LEFT JOIN mantém visitas novas sem responsável.
     check(str_contains($db->statement->sql,'u.nome AS funcionario_nome')&&str_contains($db->statement->sql,'LEFT JOIN usuarios r'));
-    check($db->statement->bindings[1]===7&&in_array('%!%!_!!%',$db->statement->bindings,true));
-    try{$repository->list('responsavel_id',7,20,0);throw new RuntimeException('Escopo de responsável deveria ser recusado.');}catch(InvalidArgumentException){}
+    check($db->statement->bindings[1]===5&&$db->statement->bindings[2]===7&&in_array('%!%!_!!%',$db->statement->bindings,true));
+    try{$repository->list(5,'responsavel_id',7,20,0);throw new RuntimeException('Escopo de responsável deveria ser recusado.');}catch(InvalidArgumentException){}
 });

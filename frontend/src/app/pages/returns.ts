@@ -455,8 +455,7 @@ export class ReturnDetailPage {
     return (
       !!r &&
       r.status === "pendente" &&
-      (u?.perfil === "admin" ||
-        (u?.perfil === "funcionario" && u.id === Number(r.usuario_id)))
+      (u?.perfil === "admin" || (!!u && u.id === Number(r.usuario_id)))
     );
   }
   private active(generation: number, id: number): boolean {

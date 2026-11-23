@@ -7,26 +7,27 @@ use PDO;
 final class ClienteRepository
 {
     public function __construct(private PDO $db) {}
-    private function scope(?string $column, int $userId): array
+    // Todo acesso a clientes começa pela empresa. Depois, quem não é admin vê só os clientes ligados a ele.
+    private function scope(int $company, ?string $column, int $userId): array
     {
-        if ($column===null) { return ['1=1',[]]; }
+        if ($column===null) { return ['c.empresa_id=?',[$company]]; }
         if ($column!=='usuario_id') { throw new \InvalidArgumentException(); }
         $parts=['EXISTS (SELECT 1 FROM cliente_funcionarios cf WHERE cf.cliente_id=c.id AND cf.usuario_id=?)']; $values=[$userId];
         foreach (['visitas','agendamentos'] as $table) { $parts[]="EXISTS (SELECT 1 FROM {$table} h WHERE h.cliente_id=c.id AND h.{$column}=?)"; $values[]=$userId; }
-        return ['('.implode(' OR ',$parts).')',$values];
+        return ['c.empresa_id=? AND ('.implode(' OR ',$parts).')',[$company,...$values]];
     }
     public function lock(int $id): bool
     {
         $q=$this->db->prepare('SELECT id FROM clientes WHERE id=? FOR UPDATE');$q->execute([$id]);return (bool)$q->fetch();
     }
-    public function find(int $id, ?string $column, int $userId, bool $current = false): ?array
+    public function find(int $company, int $id, ?string $column, int $userId, bool $current = false): ?array
     {
-        [$scope,$values]=$this->scope($column,$userId);
+        [$scope,$values]=$this->scope($company,$column,$userId);
         $q=$this->db->prepare('SELECT c.* FROM clientes c WHERE c.id=? AND '.$scope.($current?' FOR UPDATE':''));$q->execute([$id,...$values]);return $q->fetch()?:null;
     }
-    public function list(?string $column, int $userId, int $limit, int $offset, string $search, ?bool $active): array
+    public function list(int $company, ?string $column, int $userId, int $limit, int $offset, string $search, ?bool $active): array
     {
-        [$scope,$values]=$this->scope($column,$userId);$where=[$scope];
+        [$scope,$values]=$this->scope($company,$column,$userId);$where=[$scope];
         if ($active!==null) { $where[]='c.ativo=?';$values[]=(int)$active; }
         if ($search!=='') { $where[]="(c.nome_empresa LIKE ? ESCAPE '!' OR c.nome_fantasia LIKE ? ESCAPE '!' OR CONVERT(c.cnpj USING utf8mb4) COLLATE utf8mb4_unicode_ci LIKE ? ESCAPE '!')";$term='%'.str_replace(['!','%','_'],['!!','!%','!_'],$search).'%';array_push($values,$term,$term,$term); }
         $q=$this->db->prepare('SELECT c.* FROM clientes c WHERE '.implode(' AND ',$where).' ORDER BY c.nome_empresa,c.id LIMIT ? OFFSET ?');$i=1;
@@ -47,7 +48,7 @@ final class ClienteRepository
     }
     public function create(array $data): int
     {
-        $keys=[...array_keys(Cliente::TEXT),'cnpj','ativo','criado_por'];
+        $keys=['empresa_id',...array_keys(Cliente::TEXT),'cnpj','ativo','criado_por'];
         $q=$this->db->prepare('INSERT INTO clientes ('.implode(',',$keys).') VALUES ('.implode(',',array_fill(0,count($keys),'?')).')');
         $q->execute(array_map(static fn($key)=>is_bool($data[$key])?(int)$data[$key]:$data[$key],$keys));return (int)$this->db->lastInsertId();
     }

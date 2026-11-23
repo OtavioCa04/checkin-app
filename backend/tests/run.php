@@ -45,11 +45,28 @@ test('check-in não pode vir do cliente', fn () => rejects(fn () => Visita::vali
 test('PATCH não altera coordenadas', fn () => rejects(fn () => Visita::validate(['latitude' => 1], false), 400));
 test('PATCH vazio e status nulo', function (): void { rejects(fn () => Visita::validate([], false), 400); rejects(fn () => Visita::validate(['status' => null], false), 400); });
 test('autorização por proprietário; admin vê tudo', function (): void {
-    $v = ['usuario_id' => 1, 'responsavel_id' => 3];
-    check(Visita::canRead(['id' => 1, 'perfil' => 'funcionario'], $v));
-    check(!Visita::canRead(['id' => 2, 'perfil' => 'funcionario'], $v));
-    check(!Visita::canRead(['id' => 3, 'perfil' => 'responsavel'], $v));
-    check(Visita::canRead(['id' => 4, 'perfil' => 'admin'], $v));
+    $v = ['empresa_id' => 1, 'usuario_id' => 1, 'responsavel_id' => 3];
+    check(Visita::canRead(['id' => 1, 'empresa_id' => 1, 'perfil' => 'funcionario'], $v));
+    check(!Visita::canRead(['id' => 2, 'empresa_id' => 1, 'perfil' => 'funcionario'], $v));
+    check(!Visita::canRead(['id' => 3, 'empresa_id' => 1, 'perfil' => 'responsavel'], $v));
+    check(Visita::canRead(['id' => 4, 'empresa_id' => 1, 'perfil' => 'admin'], $v));
+});
+test('isolamento por empresa: nada atravessa empresas, nem para admin nem para o dono', function (): void {
+    $v = ['empresa_id' => 1, 'usuario_id' => 1];
+    check(!Visita::canRead(['id' => 4, 'empresa_id' => 2, 'perfil' => 'admin'], $v));
+    check(!Visita::canRead(['id' => 1, 'empresa_id' => 2, 'perfil' => 'funcionario'], $v));
+    check(!Visita::canRead(['id' => 4, 'perfil' => 'admin'], $v));
+    check(!Visita::canRead(['id' => 4, 'empresa_id' => 1, 'perfil' => 'admin'], ['usuario_id' => 1]));
+    check(Visita::PERFIS_CAMPO === ['funcionario', 'admin']);
+});
+test('empresa nova: nome e administrador validados juntos', function (): void {
+    $ok = App\Services\EmpresaService::validate(['nome' => ' ACME ', 'admin_nome' => 'Gestor', 'admin_email' => 'g@acme.test', 'admin_senha' => '12345678'], true);
+    check($ok['nome'] === 'ACME' && $ok['admin']['perfil'] === 'admin' && $ok['admin']['email'] === 'g@acme.test');
+    try { App\Services\EmpresaService::validate(['nome' => '', 'admin_nome' => 'G', 'admin_email' => 'x', 'admin_senha' => '123'], true); throw new RuntimeException('deveria falhar'); }
+    catch (HttpException $e) { check($e->status === 400 && isset($e->errors['nome'], $e->errors['admin_email'], $e->errors['admin_senha'])); }
+    rejects(fn () => App\Services\EmpresaService::validate(['nome' => 'X', 'extra' => 1], false), 400);
+    rejects(fn () => App\Services\EmpresaService::validate(['ativo' => 'sim'], false), 400);
+    rejects(fn () => (new ReflectionClass(App\Services\EmpresaService::class))->newInstanceWithoutConstructor()->list(['perfil' => 'admin', 'superadmin' => false]), 403);
 });
 test('check-in não aceita responsável', fn () => rejects(fn () => Visita::validate([...$input, 'responsavel_id' => 2], true), 400));
 test('senha de usuário: mínimo 8 e máximo 72 bytes', function (): void {
@@ -98,7 +115,7 @@ if (App\Config\App::env('RUN_DB_TESTS') === '1') {
         $password = 'senha-integracao-123';
         try {
             foreach (['funcionario', 'funcionario', 'admin', 'admin'] as $i => $role) {
-                $q = $db->prepare('INSERT INTO usuarios (nome, email, senha_hash, perfil) VALUES (?, ?, ?, ?)');
+                $q = $db->prepare('INSERT INTO usuarios (empresa_id, nome, email, senha_hash, perfil) VALUES (1, ?, ?, ?, ?)');
                 $q->execute(['Teste', "teste{$i}-{$suffix}@example.test", password_hash($password, PASSWORD_DEFAULT), $role]);
                 $ids[] = (int) $db->lastInsertId();
             }

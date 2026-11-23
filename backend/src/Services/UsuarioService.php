@@ -50,20 +50,21 @@ final class UsuarioService
             $this->users->managementLock();
             $currentActor = $this->users->byId((int) $actor['id']);
             if (!$currentActor || !$currentActor['ativo'] || $currentActor['perfil'] !== 'admin') { throw new HttpException(403, 'Acesso não permitido.'); }
-            $before = $id === null ? null : ($this->users->byId($id, true) ?? throw new HttpException(404, 'Usuário não encontrado.'));
+            $company = (int) $currentActor['empresa_id'];
+            $before = $id === null ? null : ($this->users->inCompany($company, $id, true) ?? throw new HttpException(404, 'Usuário não encontrado.'));
             // Só um setor ativo pode ser escolhido; manter o setor atual (mesmo inativo) é permitido.
             if (isset($data['setor_id']) && (int) ($before['setor_id'] ?? 0) !== $data['setor_id']) {
-                $sector = (new \App\Repositories\SetorRepository($this->db))->find($data['setor_id']);
+                $sector = (new \App\Repositories\SetorRepository($this->db))->find($company, $data['setor_id']);
                 if (!$sector || !$sector['ativo']) { throw new HttpException(400, 'Dados inválidos.', ['setor_id' => 'Escolha um setor ativo.']); }
             }
             if ($before !== null) {
-                self::protectLastAdmin($before, [...$before, ...$data], $this->users->activeAdmins());
+                self::protectLastAdmin($before, [...$before, ...$data], $this->users->activeAdmins($company));
                 $this->users->update($id, $data);
                 // Desativar ou trocar o perfil encerra as sessões; uma reativação exige novo login.
                 if ((array_key_exists('ativo', $data) && !$data['ativo']) || (isset($data['perfil']) && $data['perfil'] !== $before['perfil'])) {
                     (new TokenRepository($this->db))->revokeUser($id);
                 }
-            } else { $id = $this->users->create($data); }
+            } else { $id = $this->users->create([...$data, 'empresa_id' => $company]); }
             $result = Usuario::publicData($this->users->byId($id));
             $this->db->commit(); return $result;
         } catch (\Throwable $e) {

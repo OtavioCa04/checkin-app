@@ -15,7 +15,8 @@ final class TokenRepository
     }
     public function user(string $hash): ?array
     {
-        $q = $this->db->prepare('SELECT u.* FROM auth_tokens t JOIN usuarios u ON u.id = t.usuario_id WHERE t.token_hash = ? AND t.expira_em > UTC_TIMESTAMP() AND u.ativo = 1');
+        // Empresa desativada encerra o acesso de todos os seus usuários.
+        $q = $this->db->prepare('SELECT u.*, e.nome AS empresa_nome, s.nome AS setor_nome FROM auth_tokens t JOIN usuarios u ON u.id = t.usuario_id JOIN empresas e ON e.id = u.empresa_id AND e.ativo = 1 LEFT JOIN setores s ON s.id = u.setor_id WHERE t.token_hash = ? AND t.expira_em > UTC_TIMESTAMP() AND u.ativo = 1');
         $q->execute([$hash]);
         return $q->fetch() ?: null;
     }

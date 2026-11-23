@@ -16,7 +16,7 @@ try{
     $_ENV['DB_DATABASE']=$target;require dirname(__DIR__).'/bin/migrate.php';
     $users=new UsuarioRepository(Database::connection());
     foreach(['admin','admin','funcionario','funcionario']as$i=>$role){
-        $users->create(['nome'=>'Teste '.ucfirst($role).' '.($i+1),'email'=>'audit'.($i+1).'@example.test','senha_hash'=>password_hash($password,PASSWORD_DEFAULT),'perfil'=>$role,'ativo'=>true]);
+        $users->create(['empresa_id'=>1,'nome'=>'Teste '.ucfirst($role).' '.($i+1),'email'=>'audit'.($i+1).'@example.test','senha_hash'=>password_hash($password,PASSWORD_DEFAULT),'perfil'=>$role,'ativo'=>true]);
     }
     echo "Banco novo de navegador preparado com quatro identidades fictícias. Mantido para teste manual; encerre o servidor antes de removê-lo.\n";
 }catch(Throwable $e){

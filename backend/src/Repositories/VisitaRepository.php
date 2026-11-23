@@ -8,7 +8,7 @@ final class VisitaRepository
     public function __construct(private PDO $db) {}
     public function create(array $data): int
     {
-        $keys=['usuario_id','local','contato','empresa','assunto','descricao','agendamento_id','cliente_id','contato_id','cadastro_snapshot'];
+        $keys=['empresa_id','usuario_id','local','contato','empresa','assunto','descricao','agendamento_id','cliente_id','contato_id','cadastro_snapshot'];
         $q=$this->db->prepare('INSERT INTO visitas ('.implode(',',$keys).',data_hora_checkin) VALUES ('.implode(',',array_fill(0,count($keys),'?')).',UTC_TIMESTAMP())');
         $q->execute(array_map(static fn($key)=>$data[$key]??null,$keys));
         return (int) $this->db->lastInsertId();
@@ -39,10 +39,10 @@ final class VisitaRepository
         $q->execute([$id]);
         return $q->fetch() ?: null;
     }
-    public function list(?string $column, int $userId, int $limit, int $offset, array $filters = []): array
+    public function list(int $company, ?string $column, int $userId, int $limit, int $offset, array $filters = []): array
     {
         if (!in_array($column, [null, 'usuario_id'], true)) { throw new \InvalidArgumentException('Filtro inválido.'); }
-        $where = []; $values = [];
+        $where = ['v.empresa_id = ?']; $values = [$company];
         if ($column) { $where[] = "v.{$column} = ?"; $values[] = $userId; }
         foreach (['inicio' => 'v.data_hora_checkin >= ?', 'fim' => 'v.data_hora_checkin < ?', 'status' => 'v.status = ?', 'funcionario_id' => 'v.usuario_id = ?', 'setor_id' => 'u.setor_id = ?'] as $key => $clause) {
             if (isset($filters[$key])) { $where[] = $clause; $values[] = $filters[$key]; }
@@ -51,7 +51,7 @@ final class VisitaRepository
             $where[] = "v.empresa LIKE ? ESCAPE '!'";
             $values[] = '%' . str_replace(['!', '%', '_'], ['!!', '!%', '!_'], $filters['empresa']) . '%';
         }
-        $q = $this->db->prepare(self::SELECT . ($where ? ' WHERE ' . implode(' AND ', $where) : '') . ' ORDER BY v.id DESC LIMIT ? OFFSET ?');
+        $q = $this->db->prepare(self::SELECT . ' WHERE ' . implode(' AND ', $where) . ' ORDER BY v.id DESC LIMIT ? OFFSET ?');
         $i = 1;
         foreach ($values as $value) { $q->bindValue($i++, $value, is_int($value) ? PDO::PARAM_INT : PDO::PARAM_STR); }
         $q->bindValue($i++, $limit, PDO::PARAM_INT);

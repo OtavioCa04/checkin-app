@@ -11,9 +11,9 @@ final class UsuarioController extends Controller
     public function __construct(private UsuarioRepository $users, private AuthMiddleware $auth, private ?\App\Services\UsuarioService $service = null) {}
     public function index(): void
     {
-        $this->auth->user(['admin']);
+        $actor = $this->auth->user(['admin']);
         [$limit, $offset] = Pagination::read($_GET);
-        Response::success(['items' => array_map([Usuario::class, 'publicData'], $this->users->list($limit, $offset)), 'limit' => $limit, 'offset' => $offset]);
+        Response::success(['items' => array_map([Usuario::class, 'publicData'], $this->users->list((int) $actor['empresa_id'], $limit, $offset)), 'limit' => $limit, 'offset' => $offset]);
     }
     public function create(): void
     {
