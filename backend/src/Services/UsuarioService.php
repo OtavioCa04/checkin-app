@@ -11,7 +11,7 @@ final class UsuarioService
     public function __construct(private PDO $db, private UsuarioRepository $users) {}
     public static function validate(array $data, bool $creating): array
     {
-        $allowed = $creating ? ['nome', 'email', 'perfil', 'ativo', 'senha'] : ['nome', 'email', 'perfil', 'ativo'];
+        $allowed = $creating ? ['nome', 'email', 'perfil', 'ativo', 'senha', 'setor_id'] : ['nome', 'email', 'perfil', 'ativo', 'setor_id'];
         $errors = [];
         foreach (array_diff(array_keys($data), $allowed) as $key) { $errors[$key] = 'Campo não permitido.'; }
         if (!$creating && !$data) { $errors['body'] = 'Informe ao menos um campo.'; }
@@ -24,9 +24,11 @@ final class UsuarioService
             if ($field === 'perfil' && !in_array($data[$field], Usuario::PERFIS, true)) { $errors[$field] = 'Perfil inválido.'; }
         }
         if (array_key_exists('ativo', $data) && !is_bool($data['ativo'])) { $errors['ativo'] = 'Envie um booleano.'; }
+        // Setor é opcional: null deixa o usuário sem setor.
+        if (array_key_exists('setor_id', $data) && $data['setor_id'] !== null && (!is_int($data['setor_id']) || $data['setor_id'] < 1)) { $errors['setor_id'] = 'Setor inválido.'; }
         if ($creating) {
             $data['ativo'] ??= true;
-            if (!is_string($data['senha'] ?? null) || strlen($data['senha']) < 12 || strlen($data['senha']) > 72) { $errors['senha'] = 'Senha deve ter de 12 a 72 bytes.'; }
+            if (!is_string($data['senha'] ?? null) || strlen($data['senha']) < 8 || strlen($data['senha']) > 72) { $errors['senha'] = 'Senha deve ter de 8 a 72 bytes.'; }
         }
         if ($errors) { throw new HttpException(400, 'Dados inválidos.', $errors); }
         return $data;
@@ -48,8 +50,13 @@ final class UsuarioService
             $this->users->managementLock();
             $currentActor = $this->users->byId((int) $actor['id']);
             if (!$currentActor || !$currentActor['ativo'] || $currentActor['perfil'] !== 'admin') { throw new HttpException(403, 'Acesso não permitido.'); }
-            if ($id !== null) {
-                $before = $this->users->byId($id, true) ?? throw new HttpException(404, 'Usuário não encontrado.');
+            $before = $id === null ? null : ($this->users->byId($id, true) ?? throw new HttpException(404, 'Usuário não encontrado.'));
+            // Só um setor ativo pode ser escolhido; manter o setor atual (mesmo inativo) é permitido.
+            if (isset($data['setor_id']) && (int) ($before['setor_id'] ?? 0) !== $data['setor_id']) {
+                $sector = (new \App\Repositories\SetorRepository($this->db))->find($data['setor_id']);
+                if (!$sector || !$sector['ativo']) { throw new HttpException(400, 'Dados inválidos.', ['setor_id' => 'Escolha um setor ativo.']); }
+            }
+            if ($before !== null) {
                 self::protectLastAdmin($before, [...$before, ...$data], $this->users->activeAdmins());
                 $this->users->update($id, $data);
                 // Desativar ou trocar o perfil encerra as sessões; uma reativação exige novo login.

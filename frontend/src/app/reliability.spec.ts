@@ -429,6 +429,7 @@ describe("confiabilidade e permissões", () => {
   it("gestão de usuário envia booleanos e perfil sem senha no PATCH", async () => {
     const api = {
       users: vi.fn().mockResolvedValue({ items: [], limit: 20, offset: 0 }),
+      sectors: vi.fn().mockResolvedValue([]),
       updateUser: vi
         .fn()
         .mockResolvedValue({ ...user, perfil: "admin", ativo: false }),
@@ -445,7 +446,39 @@ describe("confiabilidade e permissões", () => {
       email: user.email,
       perfil: "admin",
       ativo: false,
+      setor_id: null,
     });
     expect(api.updateUser.mock.calls[0][1]).not.toHaveProperty("senha");
+  });
+  it("setor: só setores ativos (ou o atual) aparecem e o PATCH envia o setor", async () => {
+    const sectors = [
+      { id: 1, nome: "Vendas", ativo: true, usuarios: 2 },
+      { id: 2, nome: "Antigo", ativo: false, usuarios: 1 },
+      { id: 3, nome: "Outro inativo", ativo: false, usuarios: 0 },
+    ];
+    const api = {
+      users: vi.fn().mockResolvedValue({ items: [], limit: 20, offset: 0 }),
+      sectors: vi.fn().mockResolvedValue(sectors),
+      updateUser: vi.fn().mockResolvedValue({ ...user, setor_id: 1 }),
+    };
+    TestBed.configureTestingModule({
+      providers: [provideRouter([]), { provide: Api, useValue: api }],
+    });
+    const page = TestBed.createComponent(UserListPage).componentInstance;
+    await page.loadSectors();
+    page.edit({ ...user, setor_id: 2, setor_nome: "Antigo" });
+    expect(page.sectorChoices().map((s) => s.id)).toEqual([1, 2]);
+    expect(page.form.controls.setor_id.value).toBe(2);
+    page.form.patchValue({ setor_id: 1 });
+    await page.save();
+    expect(api.updateUser.mock.calls[0][1]).toMatchObject({ setor_id: 1 });
+    page.items.set([
+      { ...user, id: 7, setor_id: 1 },
+      { ...user, id: 8, setor_id: null },
+    ]);
+    page.sectorFilter.set("1");
+    expect(page.visibleItems().map((u) => u.id)).toEqual([7]);
+    page.sectorFilter.set("sem");
+    expect(page.visibleItems().map((u) => u.id)).toEqual([8]);
   });
 });

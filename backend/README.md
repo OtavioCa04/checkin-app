@@ -140,7 +140,7 @@ Consulta e listagem incluem funcionario_nome/responsavel_nome e mantêm IDs. Sã
 
 ## Gestão administrativa
 
-POST /usuarios: nome (150), email (válido, até 190), perfil, ativo booleano (default true), senha inicial 12–72 bytes. password_hash na criação. PATCH: apenas nome/email/perfil/ativo; sem troca de senha ou exclusão física. E-mail duplicado: 409. Respostas somente id/nome/email/perfil/ativo.
+POST /usuarios: nome (150), email (válido, até 190), perfil, ativo booleano (default true), senha inicial 8–72 bytes. password_hash na criação. PATCH: apenas nome/email/perfil/ativo; sem troca de senha ou exclusão física. E-mail duplicado: 409. Respostas somente id/nome/email/perfil/ativo.
 
 user_management_lock serializa operações de gestão, revalida o administrador e impede que o último admin ativo seja desativado ou perca perfil, inclusive sob concorrência. Pode editar a própria conta dentro dessa regra. Inativação invalida o acesso de tokens; alteração de perfil muda a autorização das próximas requisições.
 

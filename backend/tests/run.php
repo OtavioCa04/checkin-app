@@ -52,6 +52,25 @@ test('autorização por proprietário; admin vê tudo', function (): void {
     check(Visita::canRead(['id' => 4, 'perfil' => 'admin'], $v));
 });
 test('check-in não aceita responsável', fn () => rejects(fn () => Visita::validate([...$input, 'responsavel_id' => 2], true), 400));
+test('senha de usuário: mínimo 8 e máximo 72 bytes', function (): void {
+    $base = ['nome' => 'Teste', 'email' => 'a@example.test', 'perfil' => 'funcionario'];
+    rejects(fn () => App\Services\UsuarioService::validate([...$base, 'senha' => '1234567'], true), 400);
+    check(App\Services\UsuarioService::validate([...$base, 'senha' => '12345678'], true)['senha'] === '12345678');
+    rejects(fn () => App\Services\UsuarioService::validate([...$base, 'senha' => str_repeat('a', 73)], true), 400);
+});
+test('setor: nome obrigatório até 80 e setor do usuário opcional', function (): void {
+    check(App\Services\SetorService::validate(['nome' => ' Vendas '], true)['nome'] === 'Vendas');
+    rejects(fn () => App\Services\SetorService::validate(['nome' => ''], true), 400);
+    rejects(fn () => App\Services\SetorService::validate(['nome' => str_repeat('a', 81)], true), 400);
+    rejects(fn () => App\Services\SetorService::validate(['nome' => 'X', 'ativo' => false], true), 400);
+    rejects(fn () => App\Services\SetorService::validate([], false), 400);
+    rejects(fn () => App\Services\SetorService::validate(['ativo' => 1], false), 400);
+    check(App\Services\UsuarioService::validate(['setor_id' => null], false) === ['setor_id' => null]);
+    check(App\Services\UsuarioService::validate(['setor_id' => 3], false) === ['setor_id' => 3]);
+    rejects(fn () => App\Services\UsuarioService::validate(['setor_id' => '3'], false), 400);
+    rejects(fn () => App\Services\UsuarioService::validate(['setor_id' => 0], false), 400);
+    check(Usuario::publicData(['id' => 1, 'nome' => 'T', 'email' => 'a@b.test', 'perfil' => 'admin', 'ativo' => 1, 'setor_id' => '2', 'setor_nome' => 'Vendas'])['setor_id'] === 2);
+});
 test('somente perfis admin e funcionário', function (): void {
     check(Usuario::PERFIS === ['funcionario', 'admin']);
     rejects(fn () => App\Services\UsuarioService::validate(['nome' => 'Teste', 'email' => 'a@example.test', 'perfil' => 'responsavel', 'senha' => 'senha-de-teste-123'], true), 400);

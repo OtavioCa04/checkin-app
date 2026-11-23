@@ -4,7 +4,7 @@ import { unsavedGuard } from "./unsaved";
 export const routes: Routes = [
   {
     path: "login",
-    title: "Entrar · Em campo",
+    title: "Entrar · Na Rua",
     loadComponent: () => import("./pages/login").then((m) => m.LoginPage),
   },
   {
@@ -13,45 +13,45 @@ export const routes: Routes = [
     children: [
       {
         path: "clientes",
-        title: "Clientes · Em campo",
+        title: "Clientes · Na Rua",
         canDeactivate: [unsavedGuard],
         loadComponent: () =>
           import("./pages/clients").then((m) => m.ClientsPage),
       },
       {
         path: "clientes/:id",
-        title: "Cliente · Em campo",
+        title: "Cliente · Na Rua",
         canDeactivate: [unsavedGuard],
         loadComponent: () =>
           import("./pages/clients").then((m) => m.ClientDetailPage),
       },
       {
         path: "retornos",
-        title: "Retornos · Em campo",
+        title: "Retornos · Na Rua",
         loadComponent: () =>
           import("./pages/returns").then((m) => m.ReturnsPage),
       },
       {
         path: "retornos/:id",
-        title: "Retorno · Em campo",
+        title: "Retorno · Na Rua",
         canDeactivate: [unsavedGuard],
         loadComponent: () =>
           import("./pages/returns").then((m) => m.ReturnDetailPage),
       },
       {
         path: "agenda",
-        title: "Agenda · Em campo",
+        title: "Agenda · Na Rua",
         canDeactivate: [unsavedGuard],
         loadComponent: () => import("./pages/agenda").then((m) => m.AgendaPage),
       },
       {
         path: "",
-        title: "Visão geral · Em campo",
+        title: "Visão geral · Na Rua",
         loadComponent: () => import("./pages/home").then((m) => m.HomePage),
       },
       {
         path: "visitas",
-        title: "Visitas · Em campo",
+        title: "Visitas · Na Rua",
         loadComponent: () =>
           import("./pages/lists").then((m) => m.VisitListPage),
       },
@@ -59,33 +59,33 @@ export const routes: Routes = [
         path: "nova-visita",
         canActivate: [roleGuard("funcionario")],
         canDeactivate: [unsavedGuard],
-        title: "Novo check-in · Em campo",
+        title: "Novo check-in · Na Rua",
         loadComponent: () => import("./pages/create").then((m) => m.CreatePage),
       },
       {
         path: "visitas/:id",
         canDeactivate: [unsavedGuard],
-        title: "Detalhes da visita · Em campo",
+        title: "Detalhes da visita · Na Rua",
         loadComponent: () => import("./pages/detail").then((m) => m.DetailPage),
       },
       {
         path: "usuarios",
         canActivate: [roleGuard("admin")],
         canDeactivate: [unsavedGuard],
-        title: "Usuários · Em campo",
+        title: "Usuários · Na Rua",
         loadComponent: () =>
           import("./pages/lists").then((m) => m.UserListPage),
       },
       {
         path: "acesso-negado",
-        title: "Acesso restrito · Em campo",
+        title: "Acesso restrito · Na Rua",
         loadComponent: () => import("./pages/denied").then((m) => m.DeniedPage),
       },
     ],
   },
   {
     path: "**",
-    title: "Página não encontrada · Em campo",
+    title: "Página não encontrada · Na Rua",
     loadComponent: () => import("./pages/denied").then((m) => m.NotFoundPage),
   },
 ];

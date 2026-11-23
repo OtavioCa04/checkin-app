@@ -58,8 +58,11 @@ describe("endereço da API em config.js", () => {
   it("usa o endereço de produção e remove a barra final", () => {
     expect(resolveApiUrl({ apiUrl: " https://api.exemplo.com.br/api/v1/ " })).toBe("https://api.exemplo.com.br/api/v1");
   });
+  it("aceita endereço relativo no mesmo domínio do app", () => {
+    expect(resolveApiUrl({ apiUrl: "/api/v1" })).toBe(new URL("/api/v1", location.origin).href);
+  });
   it("volta ao endereço local quando config.js falta ou é inválido", () => {
-    for (const value of [undefined, null, {}, { apiUrl: "" }, { apiUrl: 42 }, { apiUrl: "não é url" }, { apiUrl: "javascript:alert(1)" }]) {
+    for (const value of [undefined, null, {}, { apiUrl: "" }, { apiUrl: 42 }, { apiUrl: "javascript:alert(1)" }]) {
       expect(resolveApiUrl(value)).toBe("http://127.0.0.1:8000/api/v1");
     }
   });

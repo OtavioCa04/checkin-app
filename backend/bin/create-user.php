@@ -7,7 +7,7 @@ if ($argc !== 4 || !filter_var($argv[2], FILTER_VALIDATE_EMAIL) || !in_array($ar
     fwrite(STDERR, "Uso: php bin/create-user.php Nome email@example.test funcionario|admin\n"); exit(1);
 }
 $password = getenv('SEED_PASSWORD');
-if ($password === false || strlen($password) < 12 || strlen($password) > 72) { fwrite(STDERR, "Defina SEED_PASSWORD com 12 a 72 bytes.\n"); exit(1); }
+if ($password === false || strlen($password) < 8 || strlen($password) > 72) { fwrite(STDERR, "Defina SEED_PASSWORD com 8 a 72 bytes.\n"); exit(1); }
 $q = App\Core\Database::connection()->prepare('INSERT INTO usuarios (nome, email, senha_hash, perfil) VALUES (?, ?, ?, ?)');
 try {
     $q->execute([trim($argv[1]), $argv[2], password_hash($password, PASSWORD_DEFAULT), $argv[3]]);

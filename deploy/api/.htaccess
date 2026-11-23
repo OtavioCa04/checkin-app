@@ -1,0 +1,5 @@
+Options -Indexes
+RewriteEngine On
+# Repassa o token de login ao PHP e envia toda rota /api/... para index.php.
+RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+RewriteRule ^ index.php [QSA,L]

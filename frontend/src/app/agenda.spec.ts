@@ -329,3 +329,17 @@ describe("agenda integrada à API e aos formulários", () => {
     http.expectNone((r) => r.method === "POST");
   });
 });
+
+describe("agrupamento por setor", () => {
+  it("ordena setores e deixa Sem setor por último", async () => {
+    const { bySector } = await import("./shared");
+    const groups = bySector([
+      { id: 1, nome: "Ana", setor_nome: "Vendas" },
+      { id: 2, nome: "Bia", setor_nome: null },
+      { id: 3, nome: "Caio", setor_nome: "Logística" },
+      { id: 4, nome: "Davi", setor_nome: "Vendas" },
+    ]);
+    expect(groups.map((g) => g.setor)).toEqual(["Logística", "Vendas", "Sem setor"]);
+    expect(groups[1].pessoas.map((p) => p.id)).toEqual([1, 4]);
+  });
+});

@@ -17,8 +17,8 @@ import { passwordBytes, maxCharacters } from "../shared";
     <div class="login-layout">
       <section class="login-story">
         <div class="brand">
-          <span class="brand-mark">↗</span
-          ><span>em campo<small>GESTÃO DE VISITAS</small></span>
+          <span class="brand-mark" aria-hidden="true"><img src="brand/narua-simbolo.png" alt="" /></span
+          ><span>Na Rua<small>VISITAS EM DIA</small></span>
         </div>
         <div class="story-body">
           <span class="eyebrow">PRESENTE EM CADA CONEXÃO</span>
@@ -33,11 +33,18 @@ import { passwordBytes, maxCharacters } from "../shared";
             <div>CHECK-IN <span>→</span> CONCLUSÃO</div>
           </div>
         </div>
-        <span class="story-footer">Cada encontro conta.</span>
+        <span class="story-footer">Visitas em dia. Resultados na mão.</span>
       </section>
       <section class="login-form">
         <div class="login-card">
-          <span class="eyebrow">BEM-VINDO AO EM CAMPO</span>
+          <img
+            class="login-logo"
+            src="brand/narua-logo.png"
+            alt="Na Rua: visitas em dia, resultados na mão"
+            width="1200"
+            height="451"
+          />
+          <span class="eyebrow">BEM-VINDO</span>
           <h2>Entre na sua conta</h2>
           <p class="muted">Acesse suas visitas e continue de onde parou.</p>
           @if (session.notice()) {

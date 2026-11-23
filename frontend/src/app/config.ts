@@ -5,7 +5,11 @@ export function resolveApiUrl(runtime: unknown): string {
   const value = (runtime as { apiUrl?: unknown } | null | undefined)?.apiUrl;
   if (typeof value !== "string" || !value.trim()) return DEFAULT_API_URL;
   try {
-    const url = new URL(value.trim());
+    // Aceita endereço relativo ("/api/v1"): API no mesmo domínio do app.
+    const url = new URL(
+      value.trim(),
+      globalThis.location?.origin ?? "http://localhost",
+    );
     if (url.protocol !== "https:" && url.protocol !== "http:") return DEFAULT_API_URL;
     return url.href.replace(/\/+$/, "");
   } catch {

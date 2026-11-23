@@ -5,10 +5,24 @@ export interface Usuario {
   email: string;
   perfil: Perfil;
   ativo: boolean;
+  setor_id?: number | null;
+  setor_nome?: string | null;
 }
 export interface Pessoa {
   id: number;
   nome: string;
+}
+/** Funcionário com o setor, usado para agrupar listas de escolha. */
+export interface PessoaSetor extends Pessoa {
+  setor_id?: number | null;
+  setor_nome?: string | null;
+}
+export interface Setor {
+  id: number;
+  nome: string;
+  ativo: boolean;
+  /** Usuários ativos neste setor. */
+  usuarios: number;
 }
 export interface ApiResponse<T> {
   success: boolean;
@@ -75,6 +89,7 @@ export interface VisitFilters {
   status?: string;
   empresa?: string;
   funcionario_id?: number;
+  setor_id?: number;
 }
 export interface NewUser {
   nome: string;
@@ -82,9 +97,10 @@ export interface NewUser {
   perfil: Perfil;
   ativo: boolean;
   senha: string;
+  setor_id?: number | null;
 }
 export type UserPatch = Partial<
-  Pick<Usuario, "nome" | "email" | "perfil" | "ativo">
+  Pick<Usuario, "nome" | "email" | "perfil" | "ativo" | "setor_id">
 >;
 export type VisitPatch = Partial<
   VisitText &
@@ -143,7 +159,9 @@ export interface AgendaChange {
   data_hora_prevista?: string;
 }
 export interface AgendaOptions {
-  funcionarios: Pessoa[];
+  funcionarios: PessoaSetor[];
+  /** Setores ativos; vazio para funcionário. */
+  setores?: Pessoa[];
 }
 export type ResultadoVisita =
   "realizada" | "sem_contato" | "reagendar" | "cancelada";

@@ -12,8 +12,8 @@ import { roleLabel } from "./shared";
       <div class="app-layout">
         <aside class="sidebar" aria-label="Navegação principal">
           <a routerLink="/" class="brand"
-            ><span class="brand-mark" aria-hidden="true">↗</span
-            ><span>em campo<small>GESTÃO DE VISITAS</small></span></a
+            ><span class="brand-mark" aria-hidden="true"><img src="brand/narua-simbolo.png" alt="" /></span
+            ><span>Na Rua<small>VISITAS EM DIA</small></span></a
           >
           <span class="nav-caption">ESPAÇO DE TRABALHO</span>
           <nav>
@@ -72,7 +72,7 @@ import { roleLabel } from "./shared";
             }}</span>
           </header>
           <div class="page-content"><router-outlet /></div>
-          <footer>Em campo <span>•</span> Registro de visitas externas</footer>
+          <footer>Na Rua <span>•</span> Visitas em dia. Resultados na mão.</footer>
         </main>
       </div>
     } @else {

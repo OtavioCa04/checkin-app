@@ -6,7 +6,7 @@ import { VisitFilters } from "../models";
 import { maxCharacters } from "../shared";
 import { RouterLink } from "@angular/router";
 import { Api, errorMessage } from "../api";
-import { Usuario, Visita } from "../models";
+import { Setor, Usuario, Visita } from "../models";
 import { Session } from "../session";
 import { LocalDatePipe, roleLabel } from "../shared";
 
@@ -50,6 +50,19 @@ import { LocalDatePipe, roleLabel } from "../shared";
           <label for="empresa-filter">Empresa contém</label
           ><input id="empresa-filter" formControlName="empresa" />
         </div>
+        @if (session.user?.perfil === "admin" && sectors().length) {
+          <div class="field">
+            <label for="setor-filter">Setor</label
+            ><select id="setor-filter" formControlName="setor_id">
+              <option [ngValue]="null">Todos</option>
+              @for (s of sectors(); track s.id) {
+                <option [ngValue]="s.id">
+                  {{ s.nome }}{{ s.ativo ? "" : " (inativo)" }}
+                </option>
+              }
+            </select>
+          </div>
+        }
         @if (session.user?.perfil === "admin") {
           <div class="field">
             <label for="funcionario-filter">ID do funcionário</label
@@ -203,7 +216,9 @@ export class VisitListPage {
       validators: [maxCharacters(180)],
     }),
     funcionario_id: new FormControl<number | null>(null),
+    setor_id: new FormControl<number | null>(null),
   });
+  readonly sectors = signal<Setor[]>([]);
   private generation = 0;
   private filters: VisitFilters = {};
   get scope(): string {
@@ -212,6 +227,13 @@ export class VisitListPage {
       : "Todos os registros da equipe.";
   }
   constructor() {
+    if (this.session.user?.perfil === "admin") {
+      // Setores só servem ao filtro; sem eles o filtro fica oculto.
+      this.api.sectors().then(
+        (items) => this.sectors.set(items),
+        () => this.sectors.set([]),
+      );
+    }
     this.route.queryParamMap.pipe(takeUntilDestroyed()).subscribe((params) => {
       this.filters = {};
       for (const key of ["inicio", "fim", "status", "empresa"] as const) {
@@ -224,12 +246,17 @@ export class VisitListPage {
       if (employee) {
         this.filters.funcionario_id = Number(employee);
       }
+      const sector = params.get("setor_id");
+      if (sector) {
+        this.filters.setor_id = Number(sector);
+      }
       this.filtersForm.reset({
         inicio: utcToLocal(params.get("inicio") ?? ""),
         fim: utcToLocal(params.get("fim") ?? ""),
         status: params.get("status") ?? "",
         empresa: params.get("empresa") ?? "",
         funcionario_id: employee ? Number(employee) : null,
+        setor_id: sector ? Number(sector) : null,
       });
       const offset = Number(params.get("offset") ?? 0);
       void this.load(
@@ -278,6 +305,9 @@ export class VisitListPage {
         return;
       }
       filters.funcionario_id = raw.funcionario_id;
+    }
+    if (this.session.user?.perfil === "admin" && raw.setor_id) {
+      filters.setor_id = raw.setor_id;
     }
     void this.router.navigate([], {
       relativeTo: this.route,

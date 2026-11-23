@@ -95,7 +95,7 @@ Abra 3-CRIAR-ADMIN.cmd. Ele perguntará:
 
 1. Seu nome.
 2. O e-mail que você quer usar para entrar.
-3. Uma senha escolhida por você. Use de 12 a 72 caracteres: letras, números e símbolos como hífen (-) ou sublinhado (_) são aceitos. Evite acentos e cedilha nesta janela. Ao digitar a senha, nada será mostrado na tela; isso é normal. Pressione Enter ao terminar.
+3. Uma senha escolhida por você. Use de 8 a 72 caracteres: letras, números e símbolos como hífen (-) ou sublinhado (_) são aceitos. Evite acentos e cedilha nesta janela. Ao digitar a senha, nada será mostrado na tela; isso é normal. Pressione Enter ao terminar.
 
 Aguarde ADMINISTRADOR CRIADO e guarde o e-mail e a senha. Não execute novamente para redefinir senha: esse arquivo cria contas novas e não muda contas existentes. E-mail já cadastrado causa erro.
 

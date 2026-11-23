@@ -1,4 +1,10 @@
-import { Component, DestroyRef, inject, signal } from "@angular/core";
+import {
+  Component,
+  DestroyRef,
+  computed,
+  inject,
+  signal,
+} from "@angular/core";
 import {
   FormControl,
   FormGroup,
@@ -10,7 +16,13 @@ import { Api, errorMessage, fieldErrors } from "../api";
 import { Agendamento, AgendaOptions, ClienteSelection } from "../models";
 import { CustomerPicker } from "../customer-picker";
 import { Session } from "../session";
-import { LocalDatePipe, maxCharacters, nonBlank, utcDate } from "../shared";
+import {
+  LocalDatePipe,
+  bySector,
+  maxCharacters,
+  nonBlank,
+  utcDate,
+} from "../shared";
 import { agendaRange, agendaStatus, localInput, toUtc } from "../agenda-dates";
 import { warnBeforeUnload } from "../unsaved";
 
@@ -85,11 +97,26 @@ import { warnBeforeUnload } from "../unsaved";
         </select>
       </div>
       @if (session.user?.perfil === "admin") {
+        @if (options().setores?.length) {
+          <div class="field">
+            <label for="agenda-sector">Setor</label
+            ><select
+              id="agenda-sector"
+              formControlName="setor_id"
+              (change)="filters.controls.funcionario_id.setValue(null)"
+            >
+              <option [ngValue]="null">Todos</option>
+              @for (s of options().setores; track s.id) {
+                <option [ngValue]="s.id">{{ s.nome }}</option>
+              }
+            </select>
+          </div>
+        }
         <div class="field">
           <label for="agenda-employee">Funcionário</label
           ><select id="agenda-employee" formControlName="funcionario_id">
             <option [ngValue]="null">Todos</option>
-            @for (u of options().funcionarios; track u.id) {
+            @for (u of filterEmployees(); track u.id) {
               <option [ngValue]="u.id">{{ u.nome }}</option>
             }
           </select>
@@ -160,8 +187,18 @@ import { warnBeforeUnload } from "../unsaved";
                   <label for="schedule-user">Funcionário *</label
                   ><select id="schedule-user" formControlName="usuario_id">
                     <option [ngValue]="null">Selecione</option>
-                    @for (u of options().funcionarios; track u.id) {
-                      <option [ngValue]="u.id">{{ u.nome }}</option>
+                    @if (options().setores?.length) {
+                      @for (g of employeeGroups(); track g.setor) {
+                        <optgroup [label]="g.setor">
+                          @for (u of g.pessoas; track u.id) {
+                            <option [ngValue]="u.id">{{ u.nome }}</option>
+                          }
+                        </optgroup>
+                      }
+                    } @else {
+                      @for (u of options().funcionarios; track u.id) {
+                        <option [ngValue]="u.id">{{ u.nome }}</option>
+                      }
                     }
                   </select>
                 </div>
@@ -383,7 +420,11 @@ export class AgendaPage {
   readonly items = signal<Agendamento[]>([]);
   readonly options = signal<AgendaOptions>({
     funcionarios: [],
+    setores: [],
   });
+  readonly employeeGroups = computed(() =>
+    bySector(this.options().funcionarios),
+  );
   readonly loadingOptions = signal(false);
   readonly optionsError = signal("");
   readonly loading = signal(false);
@@ -415,7 +456,14 @@ export class AgendaPage {
     fim: new FormControl("", { nonNullable: true }),
     status: new FormControl("", { nonNullable: true }),
     funcionario_id: new FormControl<number | null>(null),
+    setor_id: new FormControl<number | null>(null),
   });
+  /** Funcionários do filtro, limitados ao setor escolhido. */
+  filterEmployees() {
+    const sector = this.filters.controls.setor_id.value;
+    const people = this.options().funcionarios;
+    return sector ? people.filter((u) => u.setor_id === sector) : people;
+  }
   readonly form = new FormGroup({
     empresa: new FormControl("", {
       nonNullable: true,
@@ -533,6 +581,9 @@ export class AgendaPage {
         ...(f.status ? { status: f.status } : {}),
         ...(this.session.user?.perfil === "admin" && f.funcionario_id
           ? { funcionario_id: Number(f.funcionario_id) }
+          : {}),
+        ...(this.session.user?.perfil === "admin" && f.setor_id
+          ? { setor_id: Number(f.setor_id) }
           : {}),
       });
       if (!this.destroyed && generation === this.generation)

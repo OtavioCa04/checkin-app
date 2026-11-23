@@ -6,8 +6,8 @@ use App\Core\Database;
 use App\Repositories\UsuarioRepository;
 
 $target=getenv('TEST_DB_DATABASE');$password=getenv('TEST_BROWSER_PASSWORD');
-if(!$target||!preg_match('/^visitas_test_[a-z0-9_]+$/D',$target)||$target===App::env('DB_DATABASE')||!$password||strlen($password)<12||strlen($password)>72){
-    fwrite(STDERR,"Defina TEST_DB_DATABASE novo (visitas_test_*) e TEST_BROWSER_PASSWORD fictícia de 12 a 72 bytes.\n");exit(2);
+if(!$target||!preg_match('/^visitas_test_[a-z0-9_]+$/D',$target)||$target===App::env('DB_DATABASE')||!$password||strlen($password)<8||strlen($password)>72){
+    fwrite(STDERR,"Defina TEST_DB_DATABASE novo (visitas_test_*) e TEST_BROWSER_PASSWORD fictícia de 8 a 72 bytes.\n");exit(2);
 }
 $created=false;
 try{

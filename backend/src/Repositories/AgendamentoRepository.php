@@ -25,7 +25,7 @@ final class AgendamentoRepository
         if (!in_array($column, [null, 'usuario_id'], true)) { throw new \InvalidArgumentException(); }
         $where = []; $values = [];
         if ($column) { $where[] = "a.{$column}=?"; $values[] = $userId; }
-        foreach (['inicio' => 'a.data_hora_prevista>=?', 'fim' => 'a.data_hora_prevista<?', 'funcionario_id' => 'a.usuario_id=?'] as $key => $clause) {
+        foreach (['inicio' => 'a.data_hora_prevista>=?', 'fim' => 'a.data_hora_prevista<?', 'funcionario_id' => 'a.usuario_id=?', 'setor_id' => 'u.setor_id=?'] as $key => $clause) {
             if (isset($filters[$key])) { $where[] = $clause; $values[] = $filters[$key]; }
         }
         if (($filters['status'] ?? '') === 'atrasado') { $where[] = "a.status='pendente' AND a.data_hora_prevista<UTC_TIMESTAMP()"; }
@@ -52,8 +52,8 @@ final class AgendamentoRepository
     }
     public function people(string $role): array
     {
-        $q = $this->db->prepare('SELECT id,nome FROM usuarios WHERE perfil=? AND ativo=1 ORDER BY nome,id'); $q->execute([$role]);
-        return array_map(static fn ($u) => ['id' => (int) $u['id'], 'nome' => $u['nome']], $q->fetchAll());
+        $q = $this->db->prepare('SELECT u.id,u.nome,u.setor_id,s.nome AS setor_nome FROM usuarios u LEFT JOIN setores s ON s.id=u.setor_id WHERE u.perfil=? AND u.ativo=1 ORDER BY u.nome,u.id'); $q->execute([$role]);
+        return array_map(static fn ($u) => ['id' => (int) $u['id'], 'nome' => $u['nome'], 'setor_id' => $u['setor_id'] === null ? null : (int) $u['setor_id'], 'setor_nome' => $u['setor_nome']], $q->fetchAll());
     }
     public function linkReturn(int $id,int $returnId): void
     {

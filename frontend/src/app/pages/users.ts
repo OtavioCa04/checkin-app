@@ -1,4 +1,4 @@
-import { Component, inject, signal } from "@angular/core";
+import { Component, computed, inject, signal } from "@angular/core";
 import {
   FormControl,
   FormGroup,
@@ -7,7 +7,7 @@ import {
 } from "@angular/forms";
 import { Router } from "@angular/router";
 import { Api, errorMessage, fieldErrors } from "../api";
-import { Usuario, Perfil, NewUser, UserPatch } from "../models";
+import { Usuario, Perfil, NewUser, UserPatch, Setor } from "../models";
 import { Session } from "../session";
 import { maxCharacters, nonBlank, passwordBytes, roleLabel } from "../shared";
 import { warnBeforeUnload } from "../unsaved";
@@ -79,6 +79,25 @@ import { warnBeforeUnload } from "../unsaved";
                   <option [ngValue]="false">Inativo</option>
                 </select>
               </div>
+              <div class="field">
+                <label for="setor">Setor</label
+                ><select id="setor" formControlName="setor_id">
+                  <option [ngValue]="null">Sem setor</option>
+                  @for (s of sectorChoices(); track s.id) {
+                    <option [ngValue]="s.id">
+                      {{ s.nome }}{{ s.ativo ? "" : " (inativo)" }}
+                    </option>
+                  }
+                </select>
+                @if (errors()["setor_id"]) {
+                  <small class="field-error">{{ errors()["setor_id"] }}</small>
+                }
+                @if (!sectors().length) {
+                  <small class="muted"
+                    >Cadastre setores no quadro Setores, abaixo.</small
+                  >
+                }
+              </div>
               @if (!selected()) {
                 <div class="field span-two">
                   <label for="new-password">Senha inicial</label
@@ -90,7 +109,7 @@ import { warnBeforeUnload } from "../unsaved";
                   />
                   @if (invalid("senha")) {
                     <small class="field-error">{{
-                      errors()["senha"] || "Informe uma senha de 12 a 72 bytes."
+                      errors()["senha"] || "Informe uma senha de 8 a 72 bytes."
                     }}</small>
                   }
                 </div>
@@ -121,6 +140,22 @@ import { warnBeforeUnload } from "../unsaved";
         <h2>Equipe cadastrada</h2>
         <span class="muted">Página {{ offset() / limit + 1 }}</span>
       </div>
+      @if (sectors().length) {
+        <div class="field sector-filter">
+          <label for="team-sector">Mostrar setor</label
+          ><select
+            id="team-sector"
+            [value]="sectorFilter()"
+            (change)="sectorFilter.set($any($event.target).value)"
+          >
+            <option value="">Todos</option>
+            @for (s of sectors(); track s.id) {
+              <option [value]="'' + s.id">{{ s.nome }}</option>
+            }
+            <option value="sem">Sem setor</option>
+          </select>
+        </div>
+      }
       @if (busy()) {
         <div class="state-card" role="status">Carregando usuários…</div>
       } @else if (error()) {
@@ -130,8 +165,14 @@ import { warnBeforeUnload } from "../unsaved";
             Tentar novamente
           </button>
         </div>
-      } @else if (!items().length) {
-        <div class="state-card">Nenhum usuário nesta página.</div>
+      } @else if (!visibleItems().length) {
+        <div class="state-card">
+          {{
+            items().length
+              ? "Nenhum usuário deste setor nesta página."
+              : "Nenhum usuário nesta página."
+          }}
+        </div>
       } @else {
         <div
           class="table-wrap"
@@ -145,12 +186,13 @@ import { warnBeforeUnload } from "../unsaved";
                 <th>Nome</th>
                 <th>E-mail</th>
                 <th>Perfil</th>
+                <th>Setor</th>
                 <th>Situação</th>
                 <th>Ações</th>
               </tr>
             </thead>
             <tbody>
-              @for (u of items(); track u.id) {
+              @for (u of visibleItems(); track u.id) {
                 <tr>
                   <td>
                     <strong>{{ u.nome }}</strong
@@ -158,6 +200,7 @@ import { warnBeforeUnload } from "../unsaved";
                   </td>
                   <td>{{ u.email }}</td>
                   <td>{{ labels[u.perfil] }}</td>
+                  <td>{{ u.setor_nome || "—" }}</td>
                   <td>
                     <span class="status" [class.done]="u.ativo">{{
                       u.ativo ? "Ativo" : "Inativo"
@@ -203,6 +246,93 @@ import { warnBeforeUnload } from "../unsaved";
         </div>
       </div>
     </section>
+    <section class="panel">
+      <div class="panel-heading">
+        <h2>Setores</h2>
+        <span class="muted">Organizam a equipe. Não mudam o que cada um vê.</span>
+      </div>
+      @if (sectorNotice()) {
+        <div class="notice" role="status">{{ sectorNotice() }}</div>
+      }
+      @if (sectorError()) {
+        <div class="alert" role="alert">{{ sectorError() }}</div>
+      }
+      <!-- Formulário simples, sem FormGroup: evita o envio nativo que recarregaria a página. -->
+      <form class="sector-form" (submit)="$event.preventDefault(); addSector()">
+        <div class="field">
+          <label for="new-sector">Novo setor</label
+          ><input
+            id="new-sector"
+            name="new-sector"
+            maxlength="80"
+            placeholder="Ex.: Vendas, Logística, Manutenção"
+            [value]="newSector()"
+            (input)="newSector.set($any($event.target).value)"
+            [disabled]="sectorBusy()"
+          />
+        </div>
+        <button
+          class="button primary compact"
+          type="submit"
+          [disabled]="sectorBusy() || !newSector().trim()"
+        >
+          Adicionar setor
+        </button>
+      </form>
+      @if (sectors().length) {
+        <div class="table-wrap" role="region" aria-label="Setores" tabindex="0">
+          <table>
+            <thead>
+              <tr>
+                <th>Setor</th>
+                <th>Usuários ativos</th>
+                <th>Situação</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (s of sectors(); track s.id) {
+                <tr>
+                  <td>
+                    <strong>{{ s.nome }}</strong>
+                  </td>
+                  <td>{{ s.usuarios }}</td>
+                  <td>
+                    <span class="status" [class.done]="s.ativo">{{
+                      s.ativo ? "Ativo" : "Inativo"
+                    }}</span>
+                  </td>
+                  <td>
+                    <button
+                      class="text-link"
+                      [disabled]="sectorBusy()"
+                      (click)="renameSector(s)"
+                      [attr.aria-label]="'Renomear setor ' + s.nome"
+                    >
+                      Renomear</button
+                    ><button
+                      class="text-link"
+                      [disabled]="sectorBusy()"
+                      (click)="toggleSector(s)"
+                      [attr.aria-label]="
+                        (s.ativo ? 'Desativar setor ' : 'Ativar setor ') + s.nome
+                      "
+                    >
+                      {{ s.ativo ? "Desativar" : "Ativar" }}
+                    </button>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      } @else if (!sectorBusy()) {
+        <div class="state-card">
+          Nenhum setor ainda. Crie setores como Vendas ou Logística para
+          agrupar a equipe na agenda.
+        </div>
+      }
+    </section>
   `,
 })
 export class UserListPage {
@@ -221,6 +351,20 @@ export class UserListPage {
   readonly saving = signal(false);
   readonly saveError = signal("");
   readonly errors = signal<Record<string, string>>({});
+  readonly sectors = signal<Setor[]>([]);
+  readonly sectorBusy = signal(false);
+  readonly sectorError = signal("");
+  readonly sectorNotice = signal("");
+  readonly newSector = signal("");
+  /** "" = todos, "sem" = sem setor, ou o id do setor. */
+  readonly sectorFilter = signal("");
+  readonly visibleItems = computed(() => {
+    const filter = this.sectorFilter();
+    if (!filter) return this.items();
+    return this.items().filter((u) =>
+      filter === "sem" ? !u.setor_id : String(u.setor_id) === filter,
+    );
+  });
   readonly form = new FormGroup({
     nome: new FormControl("", {
       nonNullable: true,
@@ -232,12 +376,80 @@ export class UserListPage {
     }),
     perfil: new FormControl<Perfil>("funcionario", { nonNullable: true }),
     ativo: new FormControl(true, { nonNullable: true }),
+    setor_id: new FormControl<number | null>(null),
     senha: new FormControl("", { nonNullable: true }),
   });
   private generation = 0;
   constructor() {
     warnBeforeUnload(this);
     void this.load(0);
+    void this.loadSectors();
+  }
+  /** Setores ativos, mais o setor atual do usuário em edição se estiver inativo. */
+  sectorChoices(): Setor[] {
+    const current = this.selected()?.setor_id;
+    return this.sectors().filter((s) => s.ativo || s.id === current);
+  }
+  async loadSectors(): Promise<void> {
+    try {
+      this.sectors.set(await this.api.sectors());
+    } catch (error) {
+      this.sectorError.set(errorMessage(error));
+    }
+  }
+  private async sectorAction(
+    action: () => Promise<Setor>,
+    message: string,
+  ): Promise<boolean> {
+    if (this.sectorBusy()) return false;
+    this.sectorBusy.set(true);
+    this.sectorError.set("");
+    this.sectorNotice.set("");
+    try {
+      await action();
+      this.sectorNotice.set(message);
+      await this.loadSectors();
+      return true;
+    } catch (error) {
+      const fields = fieldErrors(error);
+      this.sectorError.set(fields["nome"] || errorMessage(error));
+      return false;
+    } finally {
+      this.sectorBusy.set(false);
+    }
+  }
+  async addSector(): Promise<void> {
+    const nome = this.newSector().trim();
+    if (!nome) return;
+    if (await this.sectorAction(() => this.api.createSector(nome), "Setor criado.")) {
+      this.newSector.set("");
+    }
+  }
+  async renameSector(sector: Setor): Promise<void> {
+    const nome = window.prompt("Novo nome do setor:", sector.nome)?.trim();
+    if (!nome || nome === sector.nome) return;
+    if (
+      await this.sectorAction(
+        () => this.api.updateSector(sector.id, { nome }),
+        "Setor renomeado.",
+      )
+    ) {
+      await this.load(this.offset());
+    }
+  }
+  async toggleSector(sector: Setor): Promise<void> {
+    if (
+      sector.ativo &&
+      !window.confirm(
+        `Desativar o setor ${sector.nome}? Quem já está nele continua no setor, mas ele não aparece para novos cadastros.`,
+      )
+    ) {
+      return;
+    }
+    await this.sectorAction(
+      () => this.api.updateSector(sector.id, { ativo: !sector.ativo }),
+      sector.ativo ? "Setor desativado." : "Setor ativado.",
+    );
   }
   hasUnsavedChanges(): boolean {
     return this.editing() && (this.form.dirty || this.saving());
@@ -268,7 +480,7 @@ export class UserListPage {
             Validators.required,
             passwordBytes,
             (control) =>
-              new TextEncoder().encode(control.value).length < 12
+              new TextEncoder().encode(control.value).length < 8
                 ? { minbytes: true }
                 : null,
           ],
@@ -278,6 +490,7 @@ export class UserListPage {
       email: user?.email ?? "",
       perfil: user?.perfil ?? "funcionario",
       ativo: user?.ativo ?? true,
+      setor_id: user?.setor_id ?? null,
       senha: "",
     });
   }
@@ -335,6 +548,7 @@ export class UserListPage {
       email: raw.email,
       perfil: raw.perfil,
       ativo: raw.ativo,
+      setor_id: raw.setor_id,
     };
     try {
       const user = selected
@@ -357,6 +571,7 @@ export class UserListPage {
         }
       }
       await this.load(this.offset());
+      void this.loadSectors();
     } catch (error) {
       this.saveError.set(errorMessage(error));
       this.errors.set(fieldErrors(error));

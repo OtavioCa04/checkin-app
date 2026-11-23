@@ -89,3 +89,17 @@ export function textForm() {
     }),
   });
 }
+
+/** Agrupa pessoas por setor, em ordem alfabética, com "Sem setor" por último. */
+export function bySector<T extends { nome: string; setor_nome?: string | null }>(
+  people: readonly T[],
+): { setor: string; pessoas: T[] }[] {
+  const groups = new Map<string, T[]>();
+  for (const person of people) {
+    const key = person.setor_nome || "";
+    groups.set(key, [...(groups.get(key) ?? []), person]);
+  }
+  return [...groups.entries()]
+    .sort(([a], [b]) => (!a ? 1 : !b ? -1 : a.localeCompare(b, "pt-BR")))
+    .map(([setor, pessoas]) => ({ setor: setor || "Sem setor", pessoas }));
+}

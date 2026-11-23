@@ -44,7 +44,7 @@ final class VisitaRepository
         if (!in_array($column, [null, 'usuario_id'], true)) { throw new \InvalidArgumentException('Filtro inválido.'); }
         $where = []; $values = [];
         if ($column) { $where[] = "v.{$column} = ?"; $values[] = $userId; }
-        foreach (['inicio' => 'v.data_hora_checkin >= ?', 'fim' => 'v.data_hora_checkin < ?', 'status' => 'v.status = ?', 'funcionario_id' => 'v.usuario_id = ?'] as $key => $clause) {
+        foreach (['inicio' => 'v.data_hora_checkin >= ?', 'fim' => 'v.data_hora_checkin < ?', 'status' => 'v.status = ?', 'funcionario_id' => 'v.usuario_id = ?', 'setor_id' => 'u.setor_id = ?'] as $key => $clause) {
             if (isset($filters[$key])) { $where[] = $clause; $values[] = $filters[$key]; }
         }
         if (isset($filters['empresa'])) {

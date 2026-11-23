@@ -117,6 +117,7 @@ try{
         $q=$db->prepare('SELECT COUNT(*) FROM auth_tokens WHERE usuario_id=? AND expira_em<=UTC_TIMESTAMP()');$q->execute([$id]);check((int)$q->fetchColumn()===0);
     });
     require __DIR__.'/agenda-mysql.php';
+    require __DIR__.'/setores-mysql.php';
     require __DIR__.'/clientes-mysql.php';
     require __DIR__.'/audit-mysql.php';
     test('gestão administrativa protege permissões e não expõe hashes',function()use($management,$admin,$actor,$ids,$visits){

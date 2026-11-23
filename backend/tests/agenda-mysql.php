@@ -12,7 +12,7 @@ test('agenda cria, filtra, restringe perfis e expõe somente opções mínimas',
     rejects(fn()=>$agenda->list($actor,100,0,['funcionario_id'=>$other['id']]),403);
     check(count($agenda->list($admin,100,0,['funcionario_id'=>$actor['id'],'inicio'=>$planned['data_hora_prevista'],'fim'=>gmdate('Y-m-d\TH:i:s\Z',time()+86401)]))===1);
     check($agenda->list($admin,100,0,['fim'=>$planned['data_hora_prevista']])===[]);
-    $options=$agenda->options($actor);check(array_keys($options)===['funcionarios']&&count($options['funcionarios'])===1&&array_keys($options['funcionarios'][0])===['id','nome']);
+    $options=$agenda->options($actor);check(array_keys($options)===['funcionarios','setores']&&$options['setores']===[]&&count($options['funcionarios'])===1&&array_keys($options['funcionarios'][0])===['id','nome','setor_id','setor_nome']);
     check(in_array((int)$other['id'],array_column($agenda->options($admin)['funcionarios'],'id'),true));
     $users->update((int)$other['id'],['ativo'=>false]);rejects(fn()=>$agenda->create($admin,[...$planned,'usuario_id'=>(int)$other['id']]),400);$users->update((int)$other['id'],['ativo'=>true]);
     rejects(fn()=>$agenda->create($admin,[...$planned,'usuario_id'=>(int)$admin['id']]),400);

@@ -12,7 +12,9 @@ final class AgendamentoService
     public function options(array $user): array
     {
         if (!in_array($user['perfil'], ['admin', 'funcionario'], true)) { throw new HttpException(403, 'Sem permissão para agendar.'); }
-        return ['funcionarios' => $user['perfil'] === 'admin' ? $this->items->people('funcionario') : [['id' => (int) $user['id'], 'nome' => $user['nome']]]];
+        if ($user['perfil'] !== 'admin') { return ['funcionarios' => [['id' => (int) $user['id'], 'nome' => $user['nome'], 'setor_id' => null, 'setor_nome' => null]], 'setores' => []]; }
+        $sectors = array_map(static fn ($s) => ['id' => $s['id'], 'nome' => $s['nome']], (new \App\Repositories\SetorRepository($this->db))->list(true));
+        return ['funcionarios' => $this->items->people('funcionario'), 'setores' => $sectors];
     }
     public function find(array $user, int $id): array
     {
@@ -23,17 +25,18 @@ final class AgendamentoService
     public function list(array $user, int $limit, int $offset, array $query): array
     {
         $filters = [];
-        if (array_diff(array_keys($query), ['limit', 'offset', 'inicio', 'fim', 'status', 'funcionario_id'])) { throw new HttpException(400, 'Filtro inválido.'); }
+        if (array_diff(array_keys($query), ['limit', 'offset', 'inicio', 'fim', 'status', 'funcionario_id', 'setor_id'])) { throw new HttpException(400, 'Filtro inválido.'); }
         foreach (['inicio', 'fim'] as $key) { if (isset($query[$key])) { $filters[$key] = Agendamento::date($query[$key]); } }
         if (isset($filters['inicio'], $filters['fim']) && $filters['inicio'] >= $filters['fim']) { throw new HttpException(400, 'Fim deve ser posterior ao início.'); }
         if (isset($query['status'])) {
             if (!in_array($query['status'], ['pendente', 'realizado', 'cancelado', 'atrasado'], true)) { throw new HttpException(400, 'Situação inválida.'); }
             $filters['status'] = $query['status'];
         }
-        if (isset($query['funcionario_id'])) {
+        foreach (['funcionario_id' => 'Funcionário inválido.', 'setor_id' => 'Setor inválido.'] as $key => $message) {
+            if (!isset($query[$key]) || $query[$key] === '') { continue; }
             if ($user['perfil'] !== 'admin') { throw new HttpException(403, 'Filtro exclusivo do administrador.'); }
-            $id = filter_var($query['funcionario_id'], FILTER_VALIDATE_INT, ['options' => ['min_range' => 1, 'max_range' => 4294967295]]);
-            if (!$id) { throw new HttpException(400, 'Funcionário inválido.'); } $filters['funcionario_id'] = $id;
+            $id = filter_var($query[$key], FILTER_VALIDATE_INT, ['options' => ['min_range' => 1, 'max_range' => 4294967295]]);
+            if (!$id) { throw new HttpException(400, $message); } $filters[$key] = $id;
         }
         $column = $user['perfil'] === 'admin' ? null : 'usuario_id';
         return $this->items->list($column, (int) $user['id'], $limit, $offset, $filters);

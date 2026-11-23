@@ -12,6 +12,7 @@ import {
   VisitFilters,
   NewUser,
   UserPatch,
+  Setor,
   Agendamento,
   NovaAgenda,
   AgendaChange,
@@ -318,6 +319,37 @@ export class Api {
       await firstValueFrom(
         this.http.patch<ApiResponse<Visita>>(
           `${API_CONFIG.baseUrl}/visitas/${id}`,
+          data,
+        ),
+      )
+    ).data;
+  }
+  async sectors(): Promise<Setor[]> {
+    return (
+      await firstValueFrom(
+        this.http.get<ApiResponse<{ items: Setor[] }>>(
+          `${API_CONFIG.baseUrl}/setores`,
+        ),
+      )
+    ).data.items;
+  }
+  async createSector(nome: string): Promise<Setor> {
+    return (
+      await firstValueFrom(
+        this.http.post<ApiResponse<Setor>>(`${API_CONFIG.baseUrl}/setores`, {
+          nome,
+        }),
+      )
+    ).data;
+  }
+  async updateSector(
+    id: number,
+    data: Partial<Pick<Setor, "nome" | "ativo">>,
+  ): Promise<Setor> {
+    return (
+      await firstValueFrom(
+        this.http.patch<ApiResponse<Setor>>(
+          `${API_CONFIG.baseUrl}/setores/${id}`,
           data,
         ),
       )
